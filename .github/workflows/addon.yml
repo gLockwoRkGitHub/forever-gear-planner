@@ -12,6 +12,7 @@ on:
       - "addon/**"
       - "scripts/build_addon.py"
       - "data/mechanics.json"
+      - "data/quests.json"
       - "site/app.js"
       - "site/model.js"
 

@@ -102,48 +102,83 @@ local function build(panel)
   end)
   send:SetPoint("TOPRIGHT", 0, 0)
   local scroll = UI.Scroll(panel)
-  scroll:SetPoint("TOPLEFT", 0, -46)
+  scroll:SetPoint("TOPLEFT", 0, -76)
   scroll:SetPoint("BOTTOMRIGHT")
   local headers, rows, lines = UI.Pool(UI.Header), UI.Pool(UI.ItemRow), UI.Pool(UI.Line)
 
-  local function listQuests(ids, y, header, mine)
-    local list = {}
+  -- which list to show: what the partner did and you did not (catch up), or the other way round
+  local view = "theirs"
+  local theirsBtn = UI.Flat(panel, "", 230, 22, function() view = "theirs"; tab:Refresh(); scroll:ScrollToTop() end)
+  theirsBtn:SetPoint("TOPLEFT", 0, -48)
+  local mineBtn = UI.Flat(panel, "", 230, 22, function() view = "mine"; tab:Refresh(); scroll:ScrollToTop() end)
+  mineBtn:SetPoint("LEFT", theirsBtn, "RIGHT", 6, 0)
+
+  -- quest name, zone and levels: the quest table built into the addon, else the reward data, else the game
+  local function questMeta(id)
+    local D = FS.Data
+    local q = D.quests and D.quests[id]
+    local items, s = questInfo(id)
+    return {
+      id = id, items = items,
+      zone = (q and D.questZones[q[2]]) or (s and (s.dq or s.w)) or "Unknown zone",
+      level = (q and q[3]) or (s and s.ql) or 0,
+      minLevel = (q and q[4]) or (s and s.ml) or 0,
+      title = U.QuestTitle(id) or (q and q[1]) or (s and s.n) or ("Quest #" .. id),
+    }
+  end
+
+  -- one list, grouped by zone; zones in leveling order (lowest quest level first)
+  local function listQuests(ids, y, mine)
+    local zones, order = {}, {}
     for id in pairs(ids) do
-      local items, s = questInfo(id)
-      list[#list + 1] = { id = id, items = items, s = s, title = U.QuestTitle(id) or (s and s.n) }
+      local m = questMeta(id)
+      local z = zones[m.zone]
+      if not z then z = { name = m.zone, quests = {}, lo = 999, hi = 0 }; zones[m.zone] = z; order[#order + 1] = z end
+      z.quests[#z.quests + 1] = m
+      if m.level > 0 then z.lo, z.hi = math.min(z.lo, m.level), math.max(z.hi, m.level) end
     end
-    table.sort(list, function(a, b)
-      local la, lb = a.s and a.s.ql or 999, b.s and b.s.ql or 999
-      if la ~= lb then return la < lb end
-      return a.id < b.id
+    local last = { ["Unknown zone"] = true, Other = true }
+    table.sort(order, function(a, b)
+      if (last[a.name] or false) ~= (last[b.name] or false) then return not last[a.name] end
+      if a.lo ~= b.lo then return a.lo < b.lo end
+      return a.name < b.name
     end)
-    local h = headers:Get(scroll.content)
-    h:SetPoint("TOPLEFT", 0, -y)
-    h:SetPoint("RIGHT", scroll.content, "RIGHT")
-    h.text:SetText(header)
-    h.right:SetText(#list .. " quest" .. (#list == 1 and "" or "s"))
-    y = y + 26
-    for _, q in ipairs(list) do
-      local r = rows:Get(scroll.content)
-      r:SetPoint("TOPLEFT", 0, -y)
-      r:SetPoint("RIGHT", scroll.content, "RIGHT")
-      local where = q.s and ((q.s.w and (q.s.w .. " · ") or "") .. "level " .. (q.s.ql or "?")) or ("quest " .. q.id)
-      local best = not mine and bestReward(q.items)
-      local right = best and best.v.kind == "up" and (U.colorDelta(best.v.delta)) or ""
-      local rewardText = best and (" · reward " .. "|cff" .. U.qualityHex(best.it.q) .. best.it.n .. "|r") or ""
-      r:SetPlain("|cffffd100" .. (q.title or ("Quest #" .. q.id)) .. "|r", "|cff9e9986" .. where .. "|r" .. rewardText, right)
-      r.item = nil
-      r.tip = best and ("Best reward for you: " .. best.it.n .. " (" .. U.delta(best.v.delta) .. ")") or nil
-      y = y + 33
+    for _, z in ipairs(order) do
+      table.sort(z.quests, function(a, b)
+        if a.level ~= b.level then return a.level < b.level end
+        return a.title < b.title
+      end)
+      local h = headers:Get(scroll.content)
+      h:SetPoint("TOPLEFT", 0, -y)
+      h:SetPoint("RIGHT", scroll.content, "RIGHT")
+      h.text:SetText(z.name)
+      local range = z.hi > 0 and (z.lo == z.hi and ("level " .. z.lo) or ("level " .. z.lo .. "-" .. z.hi)) or ""
+      h.right:SetText(#z.quests .. " quest" .. (#z.quests == 1 and "" or "s") .. (range ~= "" and (" · " .. range) or ""))
+      y = y + 26
+      for _, q in ipairs(z.quests) do
+        local r = rows:Get(scroll.content)
+        r:SetPoint("TOPLEFT", 0, -y)
+        r:SetPoint("RIGHT", scroll.content, "RIGHT")
+        local best = not mine and bestReward(q.items)
+        local right = best and best.v.kind == "up" and U.colorDelta(best.v.delta) or ""
+        local info = {}
+        if q.level > 0 then info[#info + 1] = "level " .. q.level end
+        if q.minLevel > 0 and q.minLevel ~= q.level then info[#info + 1] = "from " .. q.minLevel end
+        if best then info[#info + 1] = "reward |cff" .. U.qualityHex(best.it.q) .. best.it.n .. "|r" end
+        r:SetPlain("|cffffd100" .. q.title .. "|r", "|cff9e9986" .. table.concat(info, " · ") .. "|r", right)
+        r.tip = best and ("Best reward for you: " .. best.it.n .. " (" .. U.delta(best.v.delta) .. ")") or nil
+        y = y + 33
+      end
+      y = y + 6
     end
-    if #list == 0 then
+    if #order == 0 then
       local l = lines:Get(scroll.content)
       l:SetPoint("TOPLEFT", 0, -y)
       l:SetPoint("RIGHT", scroll.content, "RIGHT")
       l.text:SetText("|cff888888None, you are on the same page.|r")
       y = y + 20
     end
-    return y + 10
+    return y
   end
 
   function tab:Refresh()
@@ -154,6 +189,7 @@ local function build(panel)
     if #names == 0 then
       title:SetText("Quest sync")
       sub:SetText("Nothing from a partner yet. When you are grouped and both run Forever Suite, your finished quests are swapped automatically.")
+      theirsBtn:Hide(); mineBtn:Hide()
       scroll:SetContentHeight(0)
       return
     end
@@ -162,13 +198,18 @@ local function build(panel)
     local rec = FS.db.questSync[name]
     local mine = Q.MyQuests()
     local theirsOnly, mineOnly = {}, {}
-    for id in pairs(rec.ids) do if not mine[id] then theirsOnly[id] = true end end
-    for id in pairs(mine) do if not rec.ids[id] then mineOnly[id] = true end end
+    local nt, nm = 0, 0
+    for id in pairs(rec.ids) do if not mine[id] then theirsOnly[id] = true; nt = nt + 1 end end
+    for id in pairs(mine) do if not rec.ids[id] then mineOnly[id] = true; nm = nm + 1 end end
     title:SetText("You and " .. name)
     sub:SetText("Their list is from " .. date("%d %b %H:%M", rec.at) .. (#names > 1 and (" · also synced: " .. table.concat(names, ", ")) or "")
       .. ". Quests only count once turned in.")
-    local y = listQuests(theirsOnly, 0, name .. " did, you did not", false)
-    y = listQuests(mineOnly, y, "You did, " .. name .. " did not", true)
+    theirsBtn:Show(); mineBtn:Show()
+    theirsBtn.label:SetText(name .. " did, you not (" .. nt .. ")")
+    mineBtn.label:SetText("You did, " .. name .. " not (" .. nm .. ")")
+    theirsBtn:SetActive(view == "theirs")
+    mineBtn:SetActive(view == "mine")
+    local y = listQuests(view == "theirs" and theirsOnly or mineOnly, 0, view == "mine")
     scroll:SetContentHeight(y)
   end
   return tab

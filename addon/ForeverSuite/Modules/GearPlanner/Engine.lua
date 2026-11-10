@@ -7,7 +7,31 @@ G.byId, G.bySlot, G.dungeonItems, G.questItems = {}, {}, {}, {}
 
 local function hasBit(v, b) return v and b and math.floor(v / b) % 2 == 1 end
 
+-- Quest rewards known only by the quest's name (loot lists of the new Forever dungeons, in older item
+-- data) get the ID another reward of the same quest has, so quests already turned in can be left out.
+local function fillQuestIds(items)
+  local byName = {}
+  for _, it in ipairs(items) do
+    for _, s in ipairs(it.src or {}) do
+      if s.t == "Quest" and s.id and s.n then
+        local key = s.n .. "|" .. (s.dq or s.w or "")
+        byName[key] = byName[key] or s.id
+        if byName[s.n] == nil then byName[s.n] = s.id elseif byName[s.n] ~= s.id then byName[s.n] = false end
+      end
+    end
+  end
+  for _, it in ipairs(items) do
+    for _, s in ipairs(it.src or {}) do
+      if s.t == "Quest" and not s.id and s.n then
+        s.id = byName[s.n .. "|" .. (s.dq or s.w or "")] or byName[s.n] or nil
+      end
+    end
+  end
+end
+G.FillQuestIds = fillQuestIds
+
 function G:IndexData()
+  fillQuestIds(FS.Data.items)
   for _, it in ipairs(FS.Data.items) do
     self.byId[it.id] = it
     local list = self.bySlot[it.sl]

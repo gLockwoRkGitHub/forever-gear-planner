@@ -166,6 +166,42 @@ M.deliver("Tato", "Q")
 check(FS.db.questSync.Tato and FS.db.questSync.Tato.ids[1445], "partner quests stored")
 SlashCmdList.FOREVERSUITE("quests")
 
+-- quests tab grouped by zone (quest table built into the addon)
+FS.Data.questZones = { "Sunken Temple", "The Barrens" }
+FS.Data.quests[1445] = { "The Temple of Atal'Hakkar", 1, 50, 38 }
+FS.Data.quests[31] = { "Aquatic Form", 2, 16, 16 }
+SlashCmdList.FOREVERSUITE("quests")
+local seen = {}
+for _, f in ipairs(M.frames) do if f._kind == "FontString" and f._parent and f._parent._shown then seen[f._text] = true end end
+check(seen["Sunken Temple"] and seen["The Barrens"], "quests grouped under zone headers")
+check(seen["|cffffd100The Temple of Atal'Hakkar|r"] or seen["|cffffd100Quest title 1445|r"], "quest listed by title")
+
+-- rewards of a quest already turned in are left out, also those known only by the quest's name
+local furs = G.byId[271719]
+check(furs and furs.src[1].id == 98823, "name-only quest reward gets the quest ID (Furs of the Earthen Ring)")
+local function inBack()
+  for _, p in ipairs(G:SlotData(S.self, "Back", 34, 10).pool) do if p.it.id == 271719 then return true end end
+  return false
+end
+check(inBack(), "Furs listed while Earthen Echo is open")
+M.game.quests[98823] = true
+M.fire("QUEST_TURNED_IN", 98823)
+M.runTimers(2)
+check(not inBack(), "Furs gone once Earthen Echo is turned in")
+S:Set("hideDone", false)
+check(inBack(), "Furs back with 'Hide finished quests' off")
+S:Set("hideDone", true)
+-- source switches on the Gear tab
+S:Set("sources", { "Quest", "Vendor", "Crafted" })
+local dungeonOnly = false
+for _, p in ipairs(G:SlotData(S.self, "Legs", 34, 10).pool) do
+  local any = false
+  for _, s in ipairs(p.it.src) do if s.t ~= "Dungeon" and G.SrcUsable(p.it, s, 34, S.self) then any = true end end
+  if not any then dungeonOnly = true end
+end
+check(not dungeonOnly, "dungeon drops hidden when Dungeon is switched off")
+S:Set("sources", nil)
+
 -- dungeon guide: entering the Deadmines on a German client
 M.game.instance = { name = "Die Todesminen", id = 36 }
 M.fire("PLAYER_ENTERING_WORLD")

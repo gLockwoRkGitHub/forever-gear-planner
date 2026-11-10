@@ -14,6 +14,7 @@ Core\Util.lua
 Core\Comm.lua
 Data\Meta.lua
 Data\Items.lua
+Data\Quests.lua
 Modules\GearPlanner\Profiles.lua
 Modules\GearPlanner\Model.lua
 Modules\GearPlanner\Engine.lua

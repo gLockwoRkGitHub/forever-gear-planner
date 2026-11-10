@@ -77,7 +77,7 @@ local function build(panel)
   local head = CreateFrame("Frame", nil, panel)
   head:SetPoint("TOPLEFT")
   head:SetPoint("TOPRIGHT")
-  head:SetHeight(58)
+  head:SetHeight(86)
 
   local name = UI.Text(head, "GameFontNormalLarge", "")
   name:SetPoint("TOPLEFT", 2, -2)
@@ -123,8 +123,32 @@ local function build(panel)
   statusText:SetTextColor(0.62, 0.6, 0.53)
   status:SetScript("OnLeave", function() GameTooltip:Hide() end)
 
+  -- third row: where items may come from, and finished quests (same settings as the Settings tab)
+  local fromLabel = UI.Text(head, "GameFontHighlightSmall", "From")
+  fromLabel:SetPoint("TOPLEFT", 2, -66)
+  fromLabel:SetTextColor(0.62, 0.6, 0.53)
+  local srcButtons = {}
+  local prev = fromLabel
+  for _, src in ipairs(G.SOURCES) do
+    local b = UI.Flat(head, src, 78, 22, function()
+      local st = S.self
+      if not st then return end
+      local set = U.copy(st.settings.sources)
+      set[src] = (not set[src]) or nil
+      S:Set("sources", S.SetToList(set, G.SOURCES))
+    end)
+    b:SetPoint("LEFT", prev, "RIGHT", prev == fromLabel and 8 or 4, 0)
+    b.tip = ({ Quest = "Quest rewards", Dungeon = "Dungeon drops and dungeon quests", Vendor = "Items from vendors",
+      Crafted = "Crafted items" })[src] .. ": click to show or hide"
+    srcButtons[src] = b
+    prev = b
+  end
+  local hideDone = UI.Check(head, "Hide finished quests", function(v) S:Set("hideDone", v) end,
+    "Leave out rewards of quests you have already turned in (whichever reward you picked).")
+  hideDone:SetPoint("LEFT", prev, "RIGHT", 10, 0)
+
   local scroll = UI.Scroll(panel)
-  scroll:SetPoint("TOPLEFT", 0, -62)
+  scroll:SetPoint("TOPLEFT", 0, -90)
   scroll:SetPoint("BOTTOMRIGHT", 0, 0)
   local content = scroll.content
   local headers = UI.Pool(UI.Header)
@@ -132,7 +156,7 @@ local function build(panel)
   local lines = UI.Pool(UI.Line)
 
   local msg = UI.Text(panel, "GameFontHighlight", "", "LEFT")
-  msg:SetPoint("TOPLEFT", 4, -70)
+  msg:SetPoint("TOPLEFT", 4, -96)
   msg:SetPoint("RIGHT", -4, 0)
   msg:SetWordWrap(true)
 
@@ -156,6 +180,12 @@ local function build(panel)
     preset.label:SetText("Weights: " .. st.settings.preset)
     topN.label:SetText("Top " .. st.settings.topN)
     onlyUp:SetChecked(st.settings.onlyUp)
+    hideDone:SetChecked(st.settings.hideDone)
+    for src, b in pairs(srcButtons) do
+      local on = st.settings.sources[src] and true or false
+      b:SetActive(on)
+      b.label:SetText(on and ("|cff" .. SRC_HEX[src] .. src .. "|r") or ("|cff777777" .. src .. "|r"))
+    end
     statusText:SetText(modelStatus(st, w))
     status:SetScript("OnEnter", function(self) weightTooltip(self, st, w) end)
 

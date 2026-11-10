@@ -99,6 +99,21 @@ for nid, n in qnpcs.items():
         npcs_by_name[n["name"].lower()].append(n)
 
 
+quests_by_name = defaultdict(list)
+for qid_, qu_ in qquests.items():
+    if qu_.get("name"):
+        quests_by_name[qu_["name"].lower()].append((int(qid_), qu_))
+
+
+def quest_by_name(qname, dungeon):
+    """The quest behind a reward known only by the quest's name (new-dungeon loot lists): one open to a
+    Tauren Shaman or Druid, preferably one that belongs to that dungeon. Gives the planner its ID, so
+    quests already turned in can be left out."""
+    cands = [(qid_, qu_) for qid_, qu_ in quests_by_name.get(qname.lower(), []) if quest_ok(qu_)]
+    inside = [c for c in cands if dungeon_name_by_area.get(int(c[1].get("zoneOrSort") or 0)) == dungeon]
+    return min(inside or cands, key=lambda c: c[0]) if cands else None
+
+
 def zone_name(zid):
     a = area_rows.get(int(zid)) if zid else None
     return a["AreaName_lang"] if a else None
@@ -201,7 +216,14 @@ for iid in ids:
         if src.startswith("quest:"):
             qname = src[6:]
             if not any(s_["t"] == "Quest" and s_["n"] == qname for s_ in sources):
-                sources.append({"t": "Quest", "n": qname, "w": dungeon, "ml": 0, "ql": 0, "dq": dungeon})
+                src_q = {"t": "Quest", "n": qname, "w": dungeon, "ml": 0, "ql": 0, "dq": dungeon}
+                found_q = quest_by_name(qname, dungeon)
+                if found_q:
+                    src_q.update({"id": found_q[0], "ml": found_q[1].get("requiredLevel") or 0,
+                                  "ql": found_q[1].get("questLevel") or 0, "rc": found_q[1].get("requiredClasses") or 0})
+                else:
+                    counters["quest_by_name_unmatched"] += 1
+                sources.append(src_q)
         elif not dungeon_found:
             sources.append({"t": "Dungeon", "n": "trash" if src == "trash" else src, "w": dungeon, "lv": 0,
                             "dc": p["dropChance"]})
@@ -332,3 +354,28 @@ payload = {"generated": date.today().isoformat(), "build": BUILD, "count": len(o
 OUT.parent.mkdir(parents=True, exist_ok=True)
 OUT.write_text("window.GEAR_DATA = " + json.dumps(payload, separators=(",", ":")) + ";\n", encoding="utf-8")
 print("written", OUT, f"{OUT.stat().st_size / 1024:.0f} KB")
+
+# ---------------------------------------------------------------- quests for the addon's quest sync
+# Every quest open to a Tauren Shaman or Druid: name, zone, quest level, minimum level. The addon groups
+# the quests one partner has done and the other has not by zone. Negative zoneOrSort values are quest
+# categories (class quests, professions, holidays).
+QUEST_SORT = {-22: "Seasonal", -24: "Herbalism", -25: "Battlegrounds", -61: "Warlock", -81: "Warrior", -82: "Shaman",
+              -101: "Fishing", -121: "Blacksmithing", -141: "Paladin", -161: "Mage", -162: "Rogue", -181: "Alchemy",
+              -182: "Leatherworking", -201: "Engineering", -221: "Treasure Map", -261: "Hunter", -262: "Priest",
+              -263: "Druid", -264: "Tailoring", -284: "Special", -304: "Cooking", -324: "First Aid", -344: "Legendary",
+              -364: "Darkmoon Faire", -365: "Ahn'Qiraj War", -366: "Lunar Festival", -367: "Reputation", -368: "Invasion",
+              -369: "Midsummer", -370: "Brewfest", -374: "Noblegarden", -375: "Pilgrim's Bounty", -376: "Love is in the Air"}
+zones_out, zone_index, quests_out = [], {}, {}
+for qid_, qu_ in qquests.items():
+    zos = int(qu_.get("zoneOrSort") or 0)
+    if not qu_.get("name") or not quest_ok(qu_) or zos in PVP_AREAS:
+        continue
+    zname = (dungeon_name_by_area.get(zos) or zone_name(zos)) if zos > 0 else QUEST_SORT.get(zos)
+    zname = zname or "Other"
+    if zname not in zone_index:
+        zone_index[zname] = len(zones_out)
+        zones_out.append(zname)
+    quests_out[str(qid_)] = [qu_["name"], zone_index[zname], qu_.get("questLevel") or 0, qu_.get("requiredLevel") or 0]
+QUESTS_OUT = OUT.parent / "quests.json"
+QUESTS_OUT.write_text(json.dumps({"zones": zones_out, "quests": quests_out}, separators=(",", ":")) + "\n", encoding="utf-8")
+print("written", QUESTS_OUT, f"{len(quests_out)} quests in {len(zones_out)} zones")
