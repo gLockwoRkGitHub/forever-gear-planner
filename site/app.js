@@ -16,7 +16,7 @@
   const PROFILES = {
     shaman: {
       label: "Enhancement Shaman", short: "Enh. Shaman", tag: "Shaman", cls: "Shaman", bit: 64, color: "#2b8cff",
-      sub: "Tauren Enhancement Shaman · two-handed axes, maces and staves · mail from level 40",
+      sub: "Tauren Enhancement Shaman · 2H axes, maces, staves · mail from 40",
       armor: { Misc: 1, Cloth: 1, Leather: 1, Mail: 40, Totem: 1 },
       weapons: { "Two-Handed Axe": 1, "Two-Handed Mace": 1, "Staff": 1 },
       relic: "Totem", profs: ["Enchanting"], level: 34,
@@ -30,7 +30,7 @@
     },
     druid: {
       label: "Feral Druid", short: "Feral Druid", tag: "Druid", cls: "Druid", bit: 1024, color: "#ff7d0a",
-      sub: "Tauren Feral Druid · staves, two-handed maces, polearms from level 20 · cloth and leather",
+      sub: "Tauren Feral Druid · staves, 2H maces, polearms from 20 · cloth and leather",
       armor: { Misc: 1, Cloth: 1, Leather: 1, Idol: 1 },
       weapons: { "Staff": 1, "Two-Handed Mace": 1, "Polearm": 20 },
       relic: "Idol", profs: [], level: 34,
@@ -134,9 +134,13 @@
   const slotSel = $("slot");
   ["All"].concat(SLOT_ORDER).forEach((s) => { const o = el("option", "", s === "All" ? "All slots" : s); o.value = s; slotSel.appendChild(o); });
   slotSel.value = SLOT_ORDER.includes(state.slot) ? state.slot : "All";
-  $("topN").value = String(state.topN);
-  slotSel.addEventListener("change", () => { state.slot = slotSel.value; store.set("slot", state.slot); render(); });
-  $("topN").addEventListener("change", (e) => { state.topN = +e.target.value; store.set("topN", state.topN); render(); });
+  slotSel.addEventListener("change", () => { state.slot = slotSel.value; store.set("slot", state.slot); render(); window.scrollTo({ top: 0 }); });
+  [3, 5, 10].forEach((n) => {
+    const l = el("label", "chip");
+    const r = el("input"); r.type = "radio"; r.name = "topN"; r.value = n; r.checked = state.topN === n;
+    r.addEventListener("change", () => { state.topN = n; store.set("topN", n); render(); });
+    l.appendChild(r); l.appendChild(el("span", "", "Top " + n)); $("topNBox").appendChild(l);
+  });
 
   function chipGroup(box, all, key) {
     box.innerHTML = "";
@@ -178,9 +182,9 @@
     b.hidden = !a;
     if (!a) return;
     const manual = state.level !== a;
-    b.textContent = manual ? "↺ " + a : "armory";
+    b.textContent = manual ? "↺ " + a : "live";
     b.disabled = !manual;
-    b.title = manual ? "Back to the armory level (" + a + ")" : "Level from the armory";
+    b.title = manual ? "Back to your live level (" + a + ")" : "Your level in the game, updated every hour";
   }
   $("lvSrc").addEventListener("click", () => { const a = armoryLevel(state.profile); if (a) setLevel(a); });
   $("level").addEventListener("change", (e) => setLevel(e.target.value));
@@ -233,7 +237,7 @@
   function updateSummaries() {
     const src = state.sources.length === SOURCES.length ? "all sources" : (state.sources.length ? state.sources.join(", ") : "no sources");
     const prof = state.myProfs.length ? state.myProfs.join(", ") : "no professions";
-    $("filterSum").textContent = src + " · " + prof + (state.random ? " · random enchants" : "")
+    $("filterSum").textContent = "Top " + state.topN + " · " + src + " · " + prof + (state.random ? " · random enchants" : "")
       + (state.onlyUp && charGear(state.profile) ? " · only upgrades" : "");
     const base = P().presets[state.preset];
     const custom = Object.keys(base).some((k) => state.weights[k] !== base[k]);
@@ -303,31 +307,76 @@
   }
   function fmtDelta(d) { return (d > 0 ? "+" : "−") + Math.abs(d).toFixed(1); }
 
-  function equippedLine(eq, w) {
+  // The equipped item an upgrade would replace: the weaker of two rings/trinkets (none while one is free).
+  function baselineItem(eq, slot, w) {
+    if (!eq.length) return null;
+    if ((slot === "Finger" || slot === "Trinket") && eq.length < 2) return null;
+    const pick = (slot === "Finger" || slot === "Trinket") ? Math.min : Math.max;
+    const target = pick.apply(null, eq.map((e) => scoreW(e, w)));
+    return eq.find((e) => scoreW(e, w) === target) || eq[0];
+  }
+
+  // --- comparison with the equipped item, like the in-game tooltip -------------------------
+  const DIFF_KEYS = ["str", "agi", "int", "sta", "spi", "ap", "feralAp", "sp", "natureSp", "hit", "crit", "hitR", "critR", "exp", "haste", "def", "dodge", "wpnDmg", "armor"];
+  function fmtNum(v) { const a = Math.abs(v); return Number.isInteger(a) ? String(a) : String(+a.toFixed(2)); }
+  function statDiff(it, ref, w) {
+    const parts = [];
+    if (it.dps || ref.dps) {
+      const d = (it.dps || 0) - (ref.dps || 0);
+      if (Math.abs(d) >= 0.05) parts.push({ d, txt: (d > 0 ? "+" : "−") + Math.abs(d).toFixed(1) + " DPS", z: !w.dps });
+    }
+    DIFF_KEYS.forEach((k) => {
+      const d = ((it.st && it.st[k]) || 0) - ((ref.st && ref.st[k]) || 0);
+      if (Math.abs(d) < 1e-9) return;
+      parts.push({ d, txt: (d > 0 ? "+" : "−") + fmtNum(d) + " " + (k === "armor" ? "Armor" : STAT_SHORT[k]), z: !w[k] && k !== "wpnDmg" });
+    });
+    return parts;
+  }
+  function diffLine(it, ref, w, slot) {
+    const d = el("div", "diff");
+    if (!ref) { d.appendChild(document.createTextNode(slot === "Finger" || slot === "Trinket" ? "Fills your free " + slot.toLowerCase() + " slot" : "Fills an empty slot")); return d; }
+    const parts = statDiff(it, ref, w);
+    d.appendChild(document.createTextNode("vs. " + ref.n + ": "));
+    if (!parts.length) d.appendChild(document.createTextNode("same stats"));
+    parts.forEach((x) => {
+      const sp = el("span", (x.d > 0 ? "pos" : "neg") + (x.z ? " z" : ""), x.txt);
+      if (x.z) sp.title = "Weight 0 for this character, not scored";
+      d.appendChild(sp);
+    });
+    return d;
+  }
+
+  function itemLink(it) {
+    const a = el("a", "q" + it.q, it.n); a.href = "https://www.wowhead.com/forever/item=" + it.id; a.target = "_blank"; a.rel = "noopener";
+    return a;
+  }
+
+  function equippedLine(eq, w, slot, ref) {
     const d = el("div", "eq");
     d.appendChild(el("span", "lbl", "Equipped"));
     if (!eq.length) d.appendChild(el("span", "eq-none", "empty slot"));
     eq.forEach((e) => {
       const span = el("span", "eq-item");
-      const a = el("a", "q" + e.q, e.n); a.href = "https://www.wowhead.com/forever/item=" + e.id; a.target = "_blank"; a.rel = "noopener";
-      span.appendChild(a);
+      span.appendChild(itemLink(e));
       const note = e.est === true ? " · suffix stats estimated" : (e.est === "unknown" ? " · suffix stats unknown" : "");
-      span.appendChild(el("span", "meta", "score " + scoreW(e, w).toFixed(1) + note));
+      const swap = eq.length > 1 && e === ref ? " · weaker one, replace this" : "";
+      span.appendChild(el("span", "meta", "score " + scoreW(e, w).toFixed(1) + swap + note));
+      if (slot !== "Relic" && slot !== "Trinket") span.appendChild(el("span", "eq-stats", statLine(e) + (e.ench ? " · " + e.ench : "")));
       d.appendChild(span);
     });
     return d;
   }
 
-  function itemRow(it, idx, level, sc, base) {
+  function itemRow(it, idx, level, sc, base, ref, slot) {
     const li = el("li", "row");
     li.appendChild(el("div", "rank", String(idx + 1)));
     const body = el("div");
     const nm = el("div", "name");
-    const a = el("a", "q" + it.q, it.n); a.href = "https://www.wowhead.com/forever/item=" + it.id; a.target = "_blank"; a.rel = "noopener";
-    nm.appendChild(a);
-    nm.appendChild(el("span", "meta", it.ty + " · req " + (it.rq || "–") + " · ilvl " + it.il + (it.boe ? " · BoE" : "")));
+    nm.appendChild(itemLink(it));
+    nm.appendChild(el("span", "meta", it.ty + (it.rq ? " · req " + it.rq : "") + " · ilvl " + it.il + (it.boe ? " · BoE" : "")));
     body.appendChild(nm);
     body.appendChild(el("div", "stats", statLine(it)));
+    if (base !== null && base !== undefined && slot !== "Relic") body.appendChild(diffLine(it, ref, state.weights, slot));
     it.src.filter((s) => srcUsable(it, s, level)).forEach((s) => {
       const d = el("div", "src"); d.appendChild(el("span", "tag " + s.t, s.t));
       d.appendChild(document.createTextNode(sourceText(s, it))); body.appendChild(d);
@@ -342,6 +391,7 @@
       const dlt = sc - base;
       box = el("div", "score " + (dlt > 0.05 ? "up" : "down"), fmtDelta(dlt));
       box.appendChild(el("small", "", "score " + sc.toFixed(1)));
+      box.title = "Gain over what you wear (score " + base.toFixed(1) + ")";
     }
     li.appendChild(box);
     return li;
@@ -352,55 +402,146 @@
     return items.map((it) => ({ it, s: score(it) })).sort((a, b) => (b.s - a.s) || (b.it.il - a.it.il));
   }
 
+  // Everything one slot card (and its overview row) needs.
+  function slotData(slot, level) {
+    const all = DATA.items.filter((it) => it.sl === slot);
+    const g = charGear(state.profile);
+    const eq = g ? g.items.filter((e) => e.slot === slot) : [];
+    const base = g ? baselineScore(eq, slot, state.weights) : null;
+    const ref = g ? baselineItem(eq, slot, state.weights) : null;
+    const eqIds = new Set(eq.map((e) => e.id));
+    const pool = ranked(all.filter((it) => eligible(it, level) && !eqIds.has(it.id)));
+    const ups = base === null ? pool : pool.filter((p) => p.s > base + 0.05);
+    const onlyUp = base !== null && state.onlyUp && slot !== "Relic";
+    const seen = new Set(); const top = [];
+    for (const p of (onlyUp ? ups : pool)) { if (seen.has(p.it.n)) continue; seen.add(p.it.n); top.push(p); if (top.length >= state.topN) break; }
+    const best = Math.max(pool.length ? pool[0].s : -Infinity, base === null ? -Infinity : base);
+    let next = null;
+    for (let L = level + 1; L <= Math.min(60, level + 3) && !next && slot !== "Relic"; L++) {
+      const cand = ranked(all.filter((it) => eligible(it, L) && !eligible(it, level) && !eqIds.has(it.id)));
+      if (cand.length && cand[0].s > best + 0.05) next = Object.assign({ L }, cand[0]);
+    }
+    return { slot, g, eq, base, ref, pool, ups, onlyUp, top, next };
+  }
+
+  function shortSource(it, level) {
+    const s = it.src.find((x) => srcUsable(it, x, level)) || it.src[0];
+    if (!s) return null;
+    if (s.t === "Dungeon") return { t: s.t, txt: s.w, loc: s.w };
+    if (s.t === "Quest") return { t: s.t, txt: s.n + (s.w ? " · " + s.w : ""), loc: s.dq || s.w };
+    if (s.t === "Vendor") return { t: s.t, txt: s.n + (s.w ? " · " + s.w : ""), loc: s.w };
+    return { t: s.t, txt: s.n + (it.bop ? " · craft it yourself" : " · tradeable"), loc: null };
+  }
+
+  function slotTitle(slot) { return slot === "Relic" ? "Relic · " + P().relic : slot; }
+
+  // One row per slot: what you wear, the best upgrade, where it drops, the gain. Click jumps to the slot card.
+  function renderOverview(out, rows, level) {
+    const hasGear = rows.some((r) => r.g);
+    const card = el("section", "card wide");
+    const h = el("h2", "", hasGear ? "Upgrade overview" : "Best item per slot");
+    h.appendChild(el("small", "", "level " + level + " · select a row to jump to the slot"));
+    card.appendChild(h);
+    const list = rows.filter((r) => r.slot !== "Relic").map((r) => {
+      const best = hasGear ? (r.ups[0] || null) : (r.pool[0] || null);
+      return Object.assign({ best, gain: best ? (hasGear ? best.s - r.base : best.s) : null }, r);
+    });
+    const withUp = list.filter((r) => r.best).sort((a, b) => b.gain - a.gain);
+    const without = list.filter((r) => !r.best);
+
+    const sum = el("div", "ov-sum");
+    if (hasGear) {
+      const places = {};
+      withUp.forEach((r) => { const s = shortSource(r.best.it, level); if (s && s.loc) places[s.loc] = (places[s.loc] || 0) + 1; });
+      const top = Object.entries(places).filter((x) => x[1] > 1).sort((a, b) => b[1] - a[1]).slice(0, 3);
+      sum.appendChild(el("b", "", withUp.length + " of " + list.length + " slots"));
+      sum.appendChild(document.createTextNode(" can be upgraded at level " + level + "."));
+      if (top.length) sum.appendChild(document.createTextNode(" Best places to go: " + top.map((x, i) => x[0] + " (" + x[1] + (i ? "" : " slots") + ")").join(", ") + "."));
+    } else {
+      sum.appendChild(document.createTextNode("No gear data for this character, so this shows the best item per slot instead of upgrades."));
+    }
+    card.appendChild(sum);
+
+    const head = el("div", "ov-row ov-head");
+    ["Slot", hasGear ? "Equipped" : "", "Best " + (hasGear ? "upgrade" : "item"), "Where", hasGear ? "Gain" : "Score"].forEach((t) => head.appendChild(el("span", "", t)));
+    card.appendChild(head);
+    withUp.concat(without).forEach((r) => {
+      const b = el("button", "ov-row" + (r.best ? "" : " none")); b.type = "button";
+      b.appendChild(el("span", "ov-slot", r.slot));
+      const eqTxt = !hasGear ? "" : (r.ref ? r.ref.n : (r.eq.length ? "one free slot" : "empty"));
+      b.appendChild(el("span", "ov-eq", eqTxt));
+      const up = el("span", "ov-up");
+      if (r.best) { up.appendChild(el("span", "ov-arrow", "→")); const n = el("b", "q" + r.best.it.q, r.best.it.n); up.appendChild(n); }
+      else up.textContent = "no upgrade now" + (r.next ? " · level " + r.next.L + ": " + r.next.it.n : "");
+      b.appendChild(up);
+      const src = el("span", "ov-src");
+      const ss = r.best ? shortSource(r.best.it, level) : null;
+      if (ss) { src.appendChild(el("span", "tag " + ss.t, ss.t)); src.appendChild(document.createTextNode(ss.txt)); }
+      b.appendChild(src);
+      b.appendChild(el("span", "ov-gain", r.best ? (hasGear ? "+" + r.gain.toFixed(1) : r.gain.toFixed(1)) : "—"));
+      b.addEventListener("click", () => { const c = $("slot-" + r.slot); if (c) c.scrollIntoView({ behavior: "smooth", block: "start" }); });
+      card.appendChild(b);
+    });
+    out.appendChild(card);
+  }
+
   function render() {
     updateSummaries();
+    updateGearAge();
     const level = state.level;
     const out = $("results"); out.innerHTML = "";
     out.classList.toggle("single", state.slot !== "All");
-    const slots = state.slot === "All" ? SLOT_ORDER : [state.slot];
-    slots.forEach((slot) => {
-      const all = DATA.items.filter((it) => it.sl === slot);
-      const g = charGear(state.profile);
-      const eq = g ? g.items.filter((e) => e.slot === slot) : [];
-      const base = g ? baselineScore(eq, slot, state.weights) : null;
-      const eqIds = new Set(eq.map((e) => e.id));
-      const pool = ranked(all.filter((it) => eligible(it, level) && !eqIds.has(it.id)));
-      const ups = base === null ? pool : pool.filter((p) => p.s > base + 0.05);
-      const onlyUp = base !== null && state.onlyUp && slot !== "Relic";
-      const shown = onlyUp ? ups : pool;
-      const seen = new Set(); const top = [];
-      for (const p of shown) { if (seen.has(p.it.n)) continue; seen.add(p.it.n); top.push(p); if (top.length >= state.topN) break; }
-      const card = el("section", "card");
-      const h = el("h2", "", slot === "Relic" ? "Relic · " + P().relic : slot);
-      const count = (base !== null && slot !== "Relic" ? ups.length + " upgrade" + (ups.length === 1 ? "" : "s") + " · " : "")
-        + pool.length + " options at level " + level + (slot === "Finger" || slot === "Trinket" ? " · 2 slots" : "");
+    const rows = (state.slot === "All" ? SLOT_ORDER : [state.slot]).map((slot) => slotData(slot, level));
+    if (state.slot === "All") renderOverview(out, rows, level);
+    rows.forEach((r) => {
+      const slot = r.slot;
+      const card = el("section", "card"); card.id = "slot-" + slot;
+      const h = el("h2", "", slotTitle(slot));
+      const count = (r.base !== null && slot !== "Relic" ? r.ups.length + " upgrade" + (r.ups.length === 1 ? "" : "s") + " · " : "")
+        + r.pool.length + " option" + (r.pool.length === 1 ? "" : "s") + " at level " + level + (slot === "Finger" || slot === "Trinket" ? " · 2 slots" : "");
       h.appendChild(el("small", "", count));
       card.appendChild(h);
-      if (g) card.appendChild(equippedLine(eq, state.weights));
-      if (!top.length) {
-        card.appendChild(el("div", "empty", onlyUp ? "No upgrade at level " + level + " from the selected sources. What you wear is ahead."
+      if (r.g) card.appendChild(equippedLine(r.eq, state.weights, slot, r.ref));
+      if (!r.top.length) {
+        card.appendChild(el("div", "empty", r.onlyUp ? "No upgrade at level " + level + " from the selected sources. What you wear is ahead."
           : "Nothing found for this level with the selected sources."));
       } else {
-        const ol = el("ol"); top.forEach((p, i) => ol.appendChild(itemRow(p.it, i, level, p.s, slot === "Relic" ? null : base))); card.appendChild(ol);
+        const ol = el("ol");
+        r.top.forEach((p, i) => ol.appendChild(itemRow(p.it, i, level, p.s, slot === "Relic" ? null : r.base, r.ref, slot)));
+        card.appendChild(ol);
       }
       if (slot === "Relic") card.appendChild(el("div", "next", "Relics only carry special effects, so they are sorted by item level. Pick by effect."));
-      const best = Math.max(top.length ? top[0].s : -Infinity, base === null ? -Infinity : base);
-      let next = null;
-      for (let L = level + 1; L <= Math.min(60, level + 3) && !next && slot !== "Relic"; L++) {
-        const cand = ranked(all.filter((it) => eligible(it, L) && !eligible(it, level)));
-        if (cand.length && cand[0].s > best) next = Object.assign({ L }, cand[0]);
-      }
-      if (next) {
+      if (r.next) {
         const d = el("div", "next");
-        d.appendChild(document.createTextNode("Coming up at level " + next.L + ": "));
-        d.appendChild(el("b", "", next.it.n));
-        d.appendChild(document.createTextNode(" (score " + next.s.toFixed(1) + ", " + next.it.src.map((s) => s.t).join("/") + ")"));
+        d.appendChild(document.createTextNode("Coming up at level " + r.next.L + ": "));
+        d.appendChild(el("b", "", r.next.it.n));
+        const gain = r.base !== null ? " · " + fmtDelta(r.next.s - r.base) + " over what you wear" : " · score " + r.next.s.toFixed(1);
+        d.appendChild(document.createTextNode(" (" + r.next.it.src.map((s) => s.t).join("/") + gain + ")"));
         card.appendChild(d);
       }
       out.appendChild(card);
     });
   }
 
+  // --- gear freshness in the header -----------------------------------------------------
+  function ago(iso) {
+    const t = new Date(iso);
+    if (isNaN(t)) return "";
+    const m = Math.round((Date.now() - t) / 60000);
+    if (m < 2) return "just now";
+    if (m < 60) return m + " min ago";
+    const h = Math.round(m / 60);
+    return h < 24 ? h + " h ago" : t.toLocaleDateString(undefined, { day: "numeric", month: "short" });
+  }
+  function updateGearAge() {
+    const box = $("gearAge");
+    if (!GEAR || !GEAR.fetched) { box.textContent = ""; return; }
+    const g = view === "gear" ? gearChar(state.profile) : null;
+    const when = (g && g.fetchedAt) || GEAR.fetched;
+    const src = g && g.source ? (g.source === "blizzard" ? "Blizzard" : "armory") : null;
+    box.textContent = "gear updated " + ago(when) + (src ? " via " + src : "") + (g && g.stale ? " (latest fetch failed)" : "");
+    box.title = new Date(when).toLocaleString();
+  }
 
   // --- views ------------------------------------------------------------------------------
   const VIEWS = ["gear", "dungeons", "addons"];
@@ -413,6 +554,7 @@
     $("charSub").textContent = view === "gear" ? P().sub
       : view === "dungeons" ? "Which dungeon helps you both most, each at your own level"
       : "What a WoW Forever addon could add to this planner";
+    updateGearAge();
     openPanel(null);
     if (view === "dungeons") renderDungeons();
   }
@@ -534,10 +676,11 @@
     ctxs.forEach((ctx) => {
       const box = el("div", "dlevel"); box.style.setProperty("--cc", ctx.prof.color);
       box.appendChild(el("span", "dot"));
-      box.appendChild(el("span", "dname", longLabel(ctx.key)));
+      const dn0 = el("span", "dname"); dn0.appendChild(el("span", "lab-long", longLabel(ctx.key)));
+      dn0.appendChild(el("span", "lab-short", charName(ctx.key) || ctx.prof.short)); box.appendChild(dn0);
       if (armoryLevel(ctx.key) && armoryLevel(ctx.key) !== ctx.level) {
         const r = el("button", "lvsrc", "↺ " + armoryLevel(ctx.key)); r.type = "button";
-        r.title = "Back to the armory level"; r.addEventListener("click", () => set(armoryLevel(ctx.key)));
+        r.title = "Back to the live level"; r.addEventListener("click", () => set(armoryLevel(ctx.key)));
         box.appendChild(r);
       }
       const set = (v) => {
@@ -603,10 +746,20 @@
     const box = $("dDetail"); box.innerHTML = "";
     const range = DUNGEON_RANGES[name];
     const head = el("div", "dhead");
-    head.appendChild(el("h2", "", name));
-    head.appendChild(el("p", "drow-meta", (range ? "Level " + range[0] + "–" + range[1] + " · " : "") + fitText(range, levels)
+    const ht = el("div");
+    ht.appendChild(el("h2", "", name));
+    ht.appendChild(el("p", "drow-meta", (range ? "Level " + range[0] + "–" + range[1] + " · " : "") + fitText(range, levels)
       + (DUNGEON_NOTES[name] ? " · " + DUNGEON_NOTES[name] : "")));
+    head.appendChild(ht);
+    const onlyUp = store.get("dOnlyUp", true);
+    const tg = el("label", "chip"); const tgi = el("input"); tgi.type = "checkbox"; tgi.checked = onlyUp;
+    tgi.addEventListener("change", () => { store.set("dOnlyUp", tgi.checked); renderDungeonDetail(name, ctxs, levels); });
+    tg.appendChild(tgi); const tgl = el("span", "", "Only upgrades"); tg.appendChild(tgl);
+    head.appendChild(tg);
     box.appendChild(head);
+    // an item matters when it is an upgrade now or soon for one of you (relics: always, pick by effect)
+    const matters = (vs) => vs.some((x) => x.v.kind === "up" || x.v.kind === "relic" || (x.v.kind === "later" && x.v.gain > 0.05));
+    let folded = 0;
 
     // group by boss; quests and trash last
     const groups = new Map();
@@ -614,6 +767,7 @@
     DUNGEON_ITEMS[name].forEach((it) => {
       const verdicts = ctxs.map((ctx) => ({ ctx, v: verdict(it, name, ctx) }));
       if (verdicts.every((x) => x.v.kind === "no")) { hidden++; return; }
+      if (onlyUp && !matters(verdicts)) { folded++; return; }
       dungeonSources(it, name).forEach((s) => {
         const key = s.t === "Quest" ? "Quest: " + s.n : (/^trash/.test(s.n) ? "Trash" : s.n);
         if (!groups.has(key)) groups.set(key, []);
@@ -621,10 +775,12 @@
         if (!arr.some((x) => x.it === it)) arr.push({ it, verdicts, best: Math.max.apply(null, verdicts.map((x) => x.v.gain || -999)) });
       });
     });
+    const upsIn = (k) => groups.get(k).filter((x) => x.verdicts.some((y) => y.v.kind === "up")).length;
     const order = Array.from(groups.keys()).sort((a, b) => {
       const w = (k) => k.startsWith("Quest: ") ? 2 : (k === "Trash" ? 1 : 0);
-      return w(a) - w(b);
+      return (w(a) - w(b)) || (upsIn(b) - upsIn(a));
     });
+    if (!order.length) box.appendChild(el("p", "empty", "Nothing here is an upgrade for either of you right now or within " + SOON + " levels."));
     order.forEach((key) => {
       const sec = el("section", "boss");
       const items = groups.get(key).sort((a, b) => b.best - a.best);
@@ -650,10 +806,11 @@
       sec.appendChild(ol);
       box.appendChild(sec);
     });
+    if (folded) tgl.textContent = "Only upgrades · " + folded + " hidden";
     if (hidden) box.appendChild(el("p", "drest", hidden + " more drop" + (hidden > 1 ? "s" : "") + " that neither of you can use."));
     box.appendChild(el("p", "drest", (ctxs.every((c) => c.hasGear)
-      ? "Upgrade = better score than what that character wears now (armory)."
-      : "Upgrade = better score than what the character wears now where the armory has it, otherwise than the best quest, vendor or crafted item at that level.") + " #rank = place among everything available in that slot. Dungeons are ranked by the number of upgrades for both of you; the score gain breaks ties. Uses each character's own weights, professions and filters from the Gear tab."));
+      ? "Upgrade = better score than what that character wears now."
+      : "Upgrade = better score than what the character wears now where gear data exists, otherwise than the best quest, vendor or crafted item at that level.") + " #rank = place among everything available in that slot. Dungeons are ranked by the number of upgrades for both of you; the score gain breaks ties. Uses each character's own weights, professions and filters from the Gear tab."));
   }
 
   function applyProfile() {
