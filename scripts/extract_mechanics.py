@@ -114,7 +114,21 @@ mech["bite"] = [
     for lv, mx, sid, eff, pw in ranks("Ferocious Bite", ENERGY, lambda f: eff_of(f, 2) is not None)
     for e in [eff_of(eff, 2)]]
 
+# --- typical mob health per level (median of normal, single-level NPCs in QuestieDB) ---------
+qfile = DL / "questie.json"
+if qfile.exists():
+    import statistics
+    by_level = defaultdict(list)
+    for n in json.loads(qfile.read_text(encoding="utf-8"))["npcs"].values():
+        lv, hp = n.get("minLevel"), n.get("maxLevelHealth")
+        if n.get("rank", 0) == 0 and lv and lv == n.get("maxLevel") and hp and lv <= 63:
+            by_level[lv].append(hp)
+    mech["mobHp"] = {str(lv): round(statistics.median(v)) for lv, v in sorted(by_level.items()) if len(v) >= 5}
+
 for k, v in mech.items():
-    print(f"{k}: {len(v)} ranks, levels {[r['lv'] for r in v]}")
+    if isinstance(v, list):
+        print(f"{k}: {len(v)} ranks, levels {[r['lv'] for r in v]}")
+    else:
+        print(f"{k}: {len(v)} levels")
 OUT.parent.mkdir(parents=True, exist_ok=True)
 OUT.write_text(json.dumps(mech, indent=1), encoding="utf-8")

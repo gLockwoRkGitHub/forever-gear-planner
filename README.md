@@ -40,15 +40,17 @@ data from [QuestieDB](https://github.com/Questie/QuestieDB), and item tooltips f
 
 ## Level model
 
-The default stat weights are computed per character and level (`site/model.js`): expected damage per second
-against a mob of that level, from the character's talents and character sheet (Blizzard API) and the ability
-ranks in the game data (`data/mechanics.json`, built by `scripts/extract_mechanics.py`). Each weight is the
-extra damage of one point of a stat, counted in Strength points; two-handers are valued by their damage and
-speed directly.
+The default stat weights are computed per character and level (`site/model.js`): how fast the character kills
+a typical mob one level below (health from QuestieDB), with every fight starting with cooldowns ready (and a
+cat with full energy). Inputs: talents and character sheet (Blizzard API) and the ability ranks in the game
+data (`data/mechanics.json`, built by `scripts/extract_mechanics.py`). Each weight is the extra kill speed of
+one point of a stat, counted in Strength points; two-handers are valued by their damage and speed directly.
 
-- Shaman: auto attacks, Flurry, Windfury (from 30), Stormstrike and Earth Shock on cooldown.
-- Druid (Cat Form, from 20): auto attacks, Rake, Claw to 5 combo points, Rip, 10 energy per second; the cat's
-  auto attack is assumed to do the weapon's damage per second.
+- Shaman: Stormstrike opens, Earth Shock after the global cooldown, both again after 6 sec, Improved
+  Stormstrike resets, auto attacks with Flurry, Windfury from 30. Calibrated with a combat log (10 Nov 2026):
+  ~10% armor reduction, Earth Shock without level scaling, Stormstrike ~6% above 150% weapon damage.
+- Druid (Cat Form, from 20): 100 energy at the start plus 10 per second, Rake, Claw, Ferocious Bite at 5 combo
+  points; the cat's auto attack is assumed to do the weapon's damage per second (not yet checked with a log).
 - Not modelled: mana, downtime, buffs, special item effects.
 
 ## Setup

@@ -307,7 +307,8 @@ def blizzard_sheet(region, token, loc):
     sheet = {"str": val(d.get("strength")), "agi": val(d.get("agility")), "int": val(d.get("intellect")),
              "sta": val(d.get("stamina")), "spi": val(d.get("spirit")), "ap": val(d.get("attack_power")),
              "crit": val(d.get("melee_crit"), "value"), "spellCrit": val(d.get("spell_crit"), "value"),
-             "sp": val(d.get("spell_power")), "mana": val(d.get("power"))}
+             "sp": val(d.get("spell_power")), "mana": val(d.get("power")),
+             "dodge": val(d.get("dodge"), "value"), "parry": val(d.get("parry"), "value")}
     return {k: v for k, v in sheet.items() if v is not None}
 
 
@@ -324,7 +325,7 @@ def armory_extras(region, server, name):
     st = d.get("stats") or {}
     sheet = {"str": st.get("strength"), "agi": st.get("agility"), "int": st.get("intellect"), "sta": st.get("stamina"),
              "spi": st.get("spirit"), "ap": st.get("attackPower"), "crit": st.get("meleeCrit"), "spellCrit": st.get("spellCrit"),
-             "sp": st.get("spellPower"), "mana": st.get("power")}
+             "sp": st.get("spellPower"), "mana": st.get("power"), "dodge": st.get("dodge"), "parry": st.get("parry")}
     return talents, {k: v for k, v in sheet.items() if v is not None}
 
 

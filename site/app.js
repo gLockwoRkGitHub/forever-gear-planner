@@ -262,7 +262,8 @@
     }
     const head = el("p", "mhead");
     head.appendChild(el("b", "", "Level model for " + who + " at level " + state.level));
-    head.appendChild(document.createTextNode(" · about " + Math.round(m.dps) + " damage per second against a mob of that level"));
+    head.appendChild(document.createTextNode(" · kills a level-" + m.mobLevel + " mob (about " + m.fight.H.toLocaleString() + " health) in "
+      + m.fight.T.toFixed(1) + " sec, about " + Math.round(m.dps) + " damage per second"));
     box.appendChild(head);
     const bar = el("div", "mbar");
     const total = m.detail.total || 1;
@@ -277,11 +278,11 @@
     const f = (x) => x >= 10 ? x.toFixed(1) : x.toFixed(2);
     const facts = [["1 % Hit", w.hit], ["1 % Crit", w.crit], ["1 Agility", w.agi], ["1 Intellect", w.int], ["1 Attack Power", w.ap]]
       .filter(([, v]) => v > 0.001).map(([k, v]) => k + " = " + f(v) + " Str");
-    box.appendChild(el("p", "", "Everything is counted in Strength points. " + facts.join(" · ") + ". Two-handers are valued by computing their damage and speed directly."));
+    box.appendChild(el("p", "", "Weights = how much faster you kill, counted in Strength points. " + facts.join(" · ") + ". Two-handers are valued by computing their damage and speed directly."));
     const assume = state.profile === "shaman"
-      ? "Assumes: mob of your level fought from the front (5% miss, dodge and parry each), Stormstrike and Earth Shock on cooldown, Windfury from level 30, no buffs. Mana and downtime are not counted."
-      : "Assumes: mob of your level fought from the front, so Claw instead of Shred; Rake, Claw to 5 combo points, Rip; 10 energy per second; the cat's auto attack does the weapon's damage per second (Forever scales feral attacks with the weapon). No buffs.";
-    box.appendChild(el("p", "mnote", assume + " Talents and character sheet come from Blizzard; ability ranks from the game data."));
+      ? "Each fight starts with Stormstrike, then Earth Shock, both again after 6 sec; Improved Stormstrike resets on your dodges and parries; Windfury from level 30. Mob one level below you, fought from the front (5% miss, dodge and parry). Calibrated with Koda's combat log: about 10% armor reduction, Earth Shock without level scaling, Stormstrike 6% above 150% weapon damage. Mana, downtime and buffs are not counted."
+      : "Each fight starts with 100 energy: Rake, Claw to build combo points, Ferocious Bite at 5; 10 energy per second. Mob one level below you, fought from the front (so Claw, not Shred). The cat's auto attack is assumed to do the weapon's damage per second (Forever scales feral attacks with the weapon) - to be checked with a combat log. No buffs.";
+    box.appendChild(el("p", "mnote", assume + " Talents and character sheet come from Blizzard; ability ranks and mob health from the game data."));
     return box;
   }
   function buildWeights() {

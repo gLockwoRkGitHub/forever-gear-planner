@@ -1,10 +1,15 @@
-// Level model: expected damage per second of the two characters at a given level, from their talents,
-// their character sheet and the ability ranks in the game data. Stat weights are the extra damage of one
-// more point of each stat, expressed in points of the main stat (Shaman: Strength, Druid: Agility).
-// Deliberately analytic (expected values, no dice), so it runs instantly for every level.
+// Level model: how fast each character kills a typical mob at a given level, from their talents, their
+// character sheet and the ability ranks in the game data. Leveling fights are short (5–10 sec), so every fight
+// starts with all cooldowns ready (and a cat with full energy). Stat weights are the extra kill speed from one
+// more point of a stat, counted in Strength points. Analytic (expected values, no dice), so it is instant.
+//
+// Calibrated with Koda's combat log (10 Nov 2026, level 33 vs Daggerspine Sirens, level 31–32):
+//   melee, Windfury and Stormstrike lose about 10% to armor; Earth Shock does not grow with level
+//   (131–140, x1.2 after Stormstrike); Stormstrike hits about 6% harder than 150% weapon damage.
 window.LevelModel = (function () {
   "use strict";
   const MECH = window.MECH || {};
+  const CAL = { stormstrike: 1.06 };
 
   // --- helpers ----------------------------------------------------------------------------
   function talent(talents, name) { return (talents || []).find((t) => t.n === name) || null; }
@@ -18,91 +23,108 @@ window.LevelModel = (function () {
   }
   function rankAt(list, L) { let r = null; (list || []).forEach((x) => { if (x.lv <= L) r = x; }); return r; }
   function scaled(base, perLevel, lv, max, L) { return base + (perLevel || 0) * Math.max(0, Math.min(L, max || L) - lv); }
-  // Normal mobs: armor grows with level (rough fit of Classic values); physical damage taken after armor.
-  function mobArmor(L) { return Math.max(20, 57 * L - 400); }
+  // Questing mobs are usually a level below you.
+  function mobLevel(L) { return Math.max(1, L - 1); }
+  function mobHp(L) {
+    const t = MECH.mobHp || {}, m = mobLevel(L);
+    if (t[m]) return t[m];
+    return Math.max(60, 0.6 * m * m + 18 * m);
+  }
+  // Armor: fitted to the combat log (about 10% physical reduction around level 32).
+  function mobArmor(L) { return 11.3 * mobLevel(L); }
   function physMult(L) { const a = mobArmor(L); return 1 - a / (a + 400 + 85 * L); }
-  // Attack table against a mob of your level, fought from the front (solo questing): 5% miss, dodge and parry.
+  // Attack table, mob fought from the front (solo questing): 5% miss, dodge and parry.
   function avoidance(hitPct) {
     const miss = Math.max(0, 0.05 - hitPct / 100), dodge = 0.05, parry = 0.05;
     return { miss, dodge, parry, land: 1 - miss - dodge - parry };
   }
+  // Uses of an ability with cooldown `cd`, first used at `start`, in a fight of `T` seconds (smooth).
+  function uses(T, start, cd) { return T <= start ? Math.max(0, T / Math.max(start, 0.5)) * 0.5 : 1 + (T - start - cd > 0 ? (T - start - cd) / cd : 0); }
 
-  // --- Enhancement Shaman -------------------------------------------------------------------
-  // Stats: str, agi, int, ap (extra AP), crit (%), hit (%), sp; weapon {min, max, speed}.
-  function shamanDps(L, s, tal, w, detail) {
+  // --- Enhancement Shaman: damage dealt in the first T seconds of a fight ---------------------
+  // Stats: ap, crit (%), hit (%), sp, spellCrit (%), dodge/parry (%); weapon {min, max, speed}.
+  function shamanParts(L, s, tal, w, T) {
     const flurry = tnum(tal, "Flurry", /by (\d+(?:\.\d+)?)%/) / 100;
     const elemW = tnum(tal, "Elemental Weapons", /Windfury Weapon effect by (\d+)%/) / 100;
     const storm = !!talent(tal, "Stormstrike");
+    const resetPct = tnum(tal, "Improved Stormstrike", /(\d+)% chance to reset/) / 100;
     const t = avoidance(s.hit);
     const crit = Math.min(1, s.crit / 100);
     const speed = w.speed || 2;
     const wAvg = ((w.min || 0) + (w.max || 0)) / 2;
     const swing = wAvg + s.ap / 14 * speed;
-    const whiteCrit = Math.min(crit, t.land), whiteHit = t.land - whiteCrit;
-    const whiteMult = whiteHit + 2 * whiteCrit;               // one-roll table for auto attacks
-    const yellowMult = t.land * (1 + crit);                    // two rolls for abilities: land, then crit
+    const whiteCrit = Math.min(crit, t.land), whiteMult = (t.land - whiteCrit) + 2 * whiteCrit;
+    const yellowMult = t.land * (1 + crit);
     const flurryUp = flurry ? 1 - Math.pow(1 - whiteCrit, 3) : 0;
-    const swingsPerSec = (1 / speed) * (1 + flurry * flurryUp);
-    const ssPerSec = storm ? 1 / 6 : 0;                       // Stormstrike: 6 sec cooldown in Forever
     const phys = physMult(L);
-    const white = swingsPerSec * swing * whiteMult * phys;
-    const ss = ssPerSec * 1.5 * swing * yellowMult * phys;     // 150% weapon damage
-    let wf = 0;
+    const swings = T / (speed / (1 + flurry * flurryUp));                 // log: about 1.8 swings per 6 sec fight
+    let ssUses = storm ? uses(T, 0, 6) : 0;                               // Stormstrike opens, 6 sec cooldown
+    if (storm && resetPct) {                                              // Improved Stormstrike: reset on dodge/parry
+      const avoid = ((s.dodge || 0) + (s.parry || 0)) / 100;
+      ssUses += resetPct * avoid * (T / 2) * Math.min(1, T / 6);          // mob swings every ~2 sec
+    }
+    const esr = rankAt(MECH.earthShock, L);
+    const esUses = esr ? uses(T, 1.5, 6) : 0;                             // after the global cooldown
+    const out = { "Auto attacks": swings * swing * whiteMult * phys, "Windfury": 0, "Stormstrike": 0, "Earth Shock": 0 };
+    out.Stormstrike = ssUses * 1.5 * swing * CAL.stormstrike * yellowMult * phys;
     const wfr = L >= 30 ? rankAt(MECH.windfury, L) : null;
     if (wfr) {
       const bonusAp = scaled(wfr.ap, wfr.perLevel, wfr.lv, wfr.max, L) * (1 + elemW);
-      const procsPerSec = 0.2 * t.land * (swingsPerSec + ssPerSec);   // 20% per landed hit
-      wf = procsPerSec * (wfr.attacks || 1) * (wAvg + (s.ap + bonusAp) / 14 * speed) * whiteMult * phys;
+      const procs = 0.2 * t.land * (swings + ssUses);                     // 20% per landed hit
+      out.Windfury = procs * (wfr.attacks || 1) * (wAvg + (s.ap + bonusAp) / 14 * speed) * whiteMult * phys;
     }
-    let es = 0;
-    const esr = rankAt(MECH.earthShock, L);
     if (esr) {
-      const dmg = scaled(esr.base, esr.perLevel, esr.lv, esr.max, L) * 1.04 + (esr.coef || 0) * (s.sp || 0);
+      const dmg = esr.base * 1.04 + (esr.coef || 0) * (s.sp || 0);        // no level scaling (combat log)
       const spellCrit = Math.min(1, (s.spellCrit || 0) / 100);
-      es = dmg * (storm ? 1.2 : 1) * 0.96 * (1 + 0.5 * spellCrit) / 6;   // every 6 sec (shock cooldown), 4% spell miss
+      out["Earth Shock"] = esUses * dmg * (storm ? 1.2 : 1) * 0.96 * (1 + 0.5 * spellCrit);
     }
-    const total = white + ss + wf + es;
-    if (detail) return { total, parts: { "Auto attacks": white, "Windfury": wf, "Stormstrike": ss, "Earth Shock": es } };
-    return total;
+    return out;
   }
 
-  // --- Feral Druid, Cat Form ----------------------------------------------------------------
+  // --- Feral Druid, Cat Form: damage in the first T seconds --------------------------------
   // Assumption: in Forever, the cat's "normal damage" is the weapon's DPS per 1.0 sec swing plus AP / 14.
-  function catDps(L, s, tal, w, detail) {
+  // Fights start with 100 energy; Rake first, Claw to build combo points, Ferocious Bite at 5 points.
+  function catParts(L, s, tal, w, T) {
     const bloodFrenzy = tnum(tal, "Blood Frenzy", /Combo Points have a (\d+)% chance/) / 100;
-    const shredRed = tnum(tal, "Shredding Attacks", /Shred ability by (\d+)/);
     const t = avoidance(s.hit);
     const crit = Math.min(1, s.crit / 100);
-    const normal = (w.dps || 0) + s.ap / 14;                   // per 1.0 sec cat swing
+    const normal = (w.dps || 0) + s.ap / 14;
     const phys = physMult(L);
     const whiteCrit = Math.min(crit, t.land), whiteMult = (t.land - whiteCrit) + 2 * whiteCrit;
     const yellowMult = t.land * (1 + crit);
-    const white = normal * whiteMult * phys;
-    let energy = 10;                                           // per second
-    if (talent(tal, "Shifting Power")) energy += 40 / 8;
+    const out = { "Auto attacks": T * normal * whiteMult * phys, "Rake": 0, "Claw": 0, "Ferocious Bite": 0 };
     const claw = rankAt(MECH.claw, L);
-    if (!claw) return detail ? { total: white, parts: { "Auto attacks": white } } : white;
-    const builder = { cost: claw.energy, dmg: (normal * claw.pct / 100 + claw.flat) * yellowMult * phys };
-    void shredRed;  // solo you face the mob, so Claw; Shred needs you behind it
-    const cpPerHit = t.land * (1 + crit * bloodFrenzy);       // extra combo point on crit (Blood Frenzy)
-    const rake = rankAt(MECH.rake, L), rip = rankAt(MECH.rip, L);
-    // one cycle: Rake (if known), builders up to 5 combo points, Rip
-    let builders = 5 / cpPerHit, cost = 0, dmg = 0;
-    const parts = { "Auto attacks": white, "Claw": 0, "Rake": 0, "Rip": 0 };
+    if (!claw) return out;
+    let energy = 100 + 10 * T;
+    if (talent(tal, "Shifting Power")) energy += 40 * uses(T, 1, 8);
+    const cpPerHit = t.land * (1 + crit * bloodFrenzy);
+    const rake = rankAt(MECH.rake, L), bite = rankAt(MECH.bite, L);
+    let builders = 0;
     if (rake) {
-      const rd = (rake.direct * yellowMult * phys + rake.tick * 3 * t.land);   // bleed ignores armor
-      cost += rake.energy; dmg += rd; parts.Rake = rd; builders -= 1;
+      const ticks = Math.min(3, T / rake.period);
+      out.Rake = rake.direct * yellowMult * phys + rake.tick * ticks * t.land;   // bleed ignores armor
+      energy -= rake.energy; builders += 1;
     }
-    builders = Math.max(0, builders);
-    cost += builders * builder.cost; dmg += builders * builder.dmg; parts.Claw = builders * builder.dmg;
-    if (rip) {
-      const rd = ((rip.tick + rip.tickPerCp * 5) * (12 / rip.period) + 0.24 * s.ap) * t.land;   // 5 points, bleed
-      cost += rip.energy; dmg += rd; parts.Rip = rd;
+    // remaining energy: Claws, plus one Bite per 5 combo points
+    const biteShare = bite ? cpPerHit / 5 : 0;
+    const n = Math.max(0, energy / (claw.energy + biteShare * bite.energy));
+    out.Claw = n * (normal * claw.pct / 100 + claw.flat) * yellowMult * phys;
+    if (bite) {
+      const bites = (builders + n) * biteShare;
+      out["Ferocious Bite"] = bites * (bite.base + bite.perCp * 5 + 0.15 * s.ap) * yellowMult * phys;
     }
-    const cycle = cost / energy;
-    Object.keys(parts).forEach((k) => { if (k !== "Auto attacks") parts[k] = parts[k] / cycle; });
-    const total = white + dmg / cycle;
-    return detail ? { total, parts } : total;
+    return out;
+  }
+
+  function sum(o) { return Object.values(o).reduce((a, b) => a + b, 0); }
+  // Fight length: the T at which the damage dealt reaches the mob's health.
+  function fight(ctx, s, w) {
+    const H = mobHp(ctx.level);
+    const parts = (T) => ctx.kind === "shaman" ? shamanParts(ctx.level, s, ctx.tal, w, T) : catParts(ctx.level, s, ctx.tal, w, T);
+    let lo = 0.2, hi = 240;
+    if (sum(parts(hi)) < H) return { T: hi, H, parts: parts(hi) };
+    for (let i = 0; i < 40; i++) { const mid = (lo + hi) / 2; if (sum(parts(mid)) >= H) hi = mid; else lo = mid; }
+    return { T: hi, H, parts: parts(hi) };
   }
 
   // --- character state from the sheet and talents ------------------------------------------
@@ -122,7 +144,7 @@ window.LevelModel = (function () {
     if (!gear || !gear.sheet || !gear.talents) return null;
     const sh = gear.sheet, tal = gear.talents, curLevel = gear.level || level;
     const s = { str: sh.str, agi: sh.agi, int: sh.int, ap: sh.ap, crit: sh.crit, spellCrit: sh.spellCrit || 0, sp: sh.sp || 0,
-      hit: gearSum(gear, "hit") + hitFromTalents(tal) };
+      dodge: sh.dodge || 0, parry: sh.parry || 0, hit: gearSum(gear, "hit") + hitFromTalents(tal) };
     let agiPerCrit, kind;
     if (key === "shaman") {
       kind = "shaman";
@@ -142,10 +164,6 @@ window.LevelModel = (function () {
       md: tnum(tal, "Mental Dexterity", /equal to (\d+)%/) / 100, ak: tnum(tal, "Ancestral Knowledge", /Intellect by (\d+)%/) / 100 };
   }
 
-  function dpsOf(ctx, s, w, detail) {
-    return ctx.kind === "shaman" ? shamanDps(ctx.level, s, ctx.tal, w, detail) : catDps(ctx.level, s, ctx.tal, w, detail);
-  }
-
   // Character stats after adding item stats `d` (str, agi, int, ap, feralAp, crit, hit, sp, natureSp).
   function withStats(ctx, d) {
     const s = Object.assign({}, ctx.s);
@@ -160,32 +178,31 @@ window.LevelModel = (function () {
   }
 
   const STEP = { str: 10, agi: 10, int: 10, ap: 20, feralAp: 20, crit: 1, hit: 1, sp: 20, natureSp: 20 };
-  // Weights in points of the main stat, plus a weapon valuation and the damage breakdown.
+  // Weights in Strength points (kill speed = 1 / fight length), plus a weapon valuation and the fight breakdown.
   function weights(ctx) {
-    const base = dpsOf(ctx, ctx.s, ctx.w);
+    const base = fight(ctx, ctx.s, ctx.w), speedOf = (f) => 1 / f.T;
     const per = {};
     Object.keys(STEP).forEach((k) => {
-      per[k] = (dpsOf(ctx, withStats(ctx, { [k]: STEP[k] }), ctx.w) - base) / STEP[k];
+      per[k] = (speedOf(fight(ctx, withStats(ctx, { [k]: STEP[k] }), ctx.w)) - speedOf(base)) / STEP[k];
     });
-    const main = "str";                                         // weights in Strength points for both
-    const unit = per[main] || 1;
+    const unit = per.str || 1;
     const w = {};
     Object.keys(per).forEach((k) => { w[k] = Math.max(0, per[k] / unit); });
     if (ctx.kind !== "shaman") w.sp = w.natureSp = 0;
     if (ctx.kind === "shaman") w.feralAp = 0;
-    const zero = dpsOf(ctx, ctx.s, { min: 0, max: 0, speed: 2, dps: 0 });
+    const zero = speedOf(fight(ctx, ctx.s, { min: 0, max: 0, speed: 2, dps: 0 }));
     return {
-      w, unit, main, dps: base,
-      detail: dpsOf(ctx, ctx.s, ctx.w, true),
-      // a two-hander's worth: its damage (and speed) against no weapon, in main-stat points
+      w, unit, main: "str", fight: base, dps: base.H / base.T, mobLevel: mobLevel(ctx.level),
+      detail: { total: sum(base.parts), parts: base.parts },
+      // a two-hander's worth: kill speed with it against no weapon, in Strength points
       weapon(it) {
         const add = (it.st && it.st.wpnDmg) || 0;
         const spd = it.speed || 2;
         const min = (it.dmgMin || it.dps * spd * 0.85) + add, max = (it.dmgMax || it.dps * spd * 1.15) + add;
-        return (dpsOf(ctx, ctx.s, { min, max, speed: spd, dps: (min + max) / 2 / spd }) - zero) / unit;
+        return (speedOf(fight(ctx, ctx.s, { min, max, speed: spd, dps: (min + max) / 2 / spd })) - zero) / unit;
       }
     };
   }
 
-  return { context, weights, mobArmor, physMult };
+  return { context, weights, mobArmor, physMult, mobHp, mobLevel };
 })();
