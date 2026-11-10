@@ -290,6 +290,14 @@
   .a-btn:hover { border-color: var(--accent); }
   .a-btn.primary { background: var(--accent); border-color: var(--accent); color: #1b1606; }
   .a-btn.ghost { background: transparent; color: var(--muted); }
+  a.a-btn { display: inline-flex; align-items: center; text-decoration: none; }
+  .a-suite { display: flex; flex-direction: column; gap: 10px; padding: 14px 18px 16px; background: color-mix(in srgb, var(--accent) 8%, var(--panel)); border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--line)); border-radius: 10px; }
+  .a-suite h2 { margin: 0; }
+  .a-suite code { padding: 1px 5px; border-radius: 4px; background: var(--panel-2); color: var(--text); font-size: 12.5px; word-break: break-all; }
+  .a-suite .a-hint { grid-column: auto; }
+  .istate { flex: none; padding: 1px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+  .istate.done { background: color-mix(in srgb, var(--good) 22%, var(--panel-2)); color: var(--good); }
+  .istate.no { background: var(--panel-2); color: var(--muted); }
   .a-hint { grid-column: 1 / -1; margin: 0; color: var(--muted); font-size: 12px; }
   .a-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 22px; }
 
@@ -437,7 +445,7 @@
 <nav class="tabs gutter" aria-label="Views">
   <a href="#gear" data-v="gear">Gear</a>
   <a href="#dungeons" data-v="dungeons">Dungeons</a>
-  <a href="#addons" data-v="addons" lang="de">Addon-Ideen</a>
+  <a href="#addons" data-v="addons" lang="de">Addon</a>
 </nav>
 
 <div id="view-gear">
@@ -515,9 +523,24 @@
 
 <section id="view-addons" hidden lang="de">
   <div class="addons gutter">
+    <div class="a-suite">
+      <h2>Forever Suite – der Planer im Spiel</h2>
+      <p>Das Addon bringt alle Items und die Rechnung dieser Seite mit und rechnet im Spiel mit eurem echten Level und Gear: beste Upgrades pro Slot, Upgrade-Zeile in jedem Tooltip, beste Questbelohnung, Dungeon-Spickzettel, Loot-Ansage und Quest-Abgleich. In der Gruppe tauschen eure beiden Addons Gear und Quests aus. Jede Funktion lässt sich einzeln ein- und ausschalten.</p>
+      <ol class="steps">
+        <li><b>Herunterladen</b> und entpacken nach <code>World of Warcraft\_forever_\Interface\AddOns</code>. Darin muss direkt der Ordner <code>ForeverSuite</code> liegen.</li>
+        <li><b>Im Spiel</b> öffnet <code>/fs</code> das Fenster, ebenso das Buch-Symbol an der Minimap (Rechtsklick: Einstellungen).</li>
+        <li><b>Talente übertragen:</b> Text kopieren, im Spiel <code>/fs import</code>, mit Strg+V einfügen, Import. Nach neuen Talentpunkten einfach wiederholen.</li>
+      </ol>
+      <div class="a-vote-btns">
+        <a class="a-btn primary" id="addonZip" href="#">Addon herunterladen (.zip)</a>
+        <button type="button" class="a-btn" id="addonCopy">Text fürs Addon kopieren</button>
+      </div>
+      <p class="a-hint" id="addonHint">Der Text enthält Talente, Charakterwerte, Gewichte und Filter von beiden Charakteren. Level und Gear liest das Addon selbst. Das Zip wird jeden Montag mit den neuen Item-Daten neu gebaut.</p>
+    </div>
+
     <div class="a-intro">
-      <h2>Addon-Ideen für Matze &amp; Pasco</h2>
-      <p>Die Seite kennt alle Items und euer aktuelles Gear. Das Spiel weiß, was ihr gerade lootet, questet und tragt. Ein eigenes kleines Addon könnte beides verbinden. <b>Markier einfach bei jeder Idee, wie du sie findest</b>, und schick Pasco unten deine Auswahl.</p>
+      <h2>Ideen für Matze &amp; Pasco</h2>
+      <p>Die meisten Ideen stecken jetzt im Addon (grün markiert). <b>Markier weiter, was du dir noch wünschst</b>, und schick Pasco unten deine Auswahl.</p>
     </div>
 
     <div class="a-done">
@@ -553,11 +576,11 @@
       <div>
         <h3>Vorschlag für die Reihenfolge</h3>
         <ol class="steps">
-          <li><b>Addon Teil 1 – allein nutzbar:</b> Upgrade-Zeile im Tooltip und beste Questbelohnung. Braucht nur die Daten der Seite.</li>
-          <li><b>Addon Teil 2 – zu zweit:</b> Loot-Ansage, Quest-Abgleich und Crit-Rekorde. Die beiden Addons reden in der Gruppe miteinander.</li>
-          <li><b>Danach:</b> Export vom Spiel zur Seite (erledigte Quests, Gear sofort).</li>
+          <li><b>Erledigt:</b> Upgrade-Zeile, beste Questbelohnung, Dungeon-Spickzettel, Loot-Ansage, Quest-Abgleich, erledigte Quests ausblenden, Gear sofort (das Addon liest es direkt).</li>
+          <li><b>Offen:</b> Datenlücken füllen (Items, die Wowhead noch nicht kennt, aus dem Spiel an die Seite geben).</li>
+          <li><b>Geht in Forever nicht:</b> Crit-Rekorde. Kampfwerte sind für Addons gesperrt (geheime Werte wie in Midnight).</li>
         </ol>
-        <p class="a-hint">Was ihr markiert, kann die Reihenfolge noch ändern.</p>
+        <p class="a-hint">Was ihr markiert, bestimmt, was als Nächstes kommt.</p>
       </div>
       <div class="notes">
         <h3>Gut zu wissen</h3>

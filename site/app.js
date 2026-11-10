@@ -809,7 +809,7 @@
     $("charSwitch").hidden = view !== "gear";
     $("charSub").textContent = view === "gear" ? P().sub
       : view === "dungeons" ? "Which dungeon helps you both most, each at your own level"
-      : "Was ein eigenes WoW-Forever-Addon zum Planer beitragen könnte";
+      : "Forever Suite: der Planer im Spiel, und was noch kommen kann";
     updateGearAge();
     openPanel(null);
     if (view === "dungeons") renderDungeons();
@@ -1114,30 +1114,77 @@
       : "Upgrade = better score than what the character wears now where gear data exists, otherwise than the best quest, vendor or crafted item at that level.") + " #rank = place among everything available in that slot. Dungeons are ranked by the number of upgrades for both of you; the score gain breaks ties. Uses each character's own weights, professions and filters from the Gear tab."));
   }
 
+  // --- in-game addon (Forever Suite): text with talents, sheet, weights and filters to paste in the game ---
+  // The addon ranks gear itself from the live level and gear; this fills in what the game cannot tell it.
+  // Same rules as the level model (model.js) and the addon's Model.talentNumbers; keep them in step.
+  function talentNumbers(talents) {
+    const t = talents || [];
+    const has = (n) => t.some((x) => x.n === n);
+    const num = (n, re) => { const x = t.find((y) => y.n === n); const m = x && re.exec(x.d || ""); return m ? parseFloat(m[1]) : 0; };
+    const hit = t.reduce((s, x) => { const m = /chance to hit by (\d+(?:\.\d+)?)%/i.exec(x.d || ""); return s + (m ? +m[1] : 0); }, 0);
+    return {
+      flurry: num("Flurry", /by (\d+(?:\.\d+)?)%/), elemW: num("Elemental Weapons", /Windfury Weapon effect by (\d+)%/),
+      storm: has("Stormstrike") ? 1 : 0, thunder: num("Thundering Strikes", /by (\d+)%/), md: num("Mental Dexterity", /equal to (\d+)%/),
+      ak: num("Ancestral Knowledge", /Intellect by (\d+)%/), hit, bloodFrenzy: num("Blood Frenzy", /Combo Points have a (\d+)% chance/),
+      shiftingPower: has("Shifting Power") ? 1 : 0, predStrikes: num("Predatory Strikes", /by (\d+)% of your level/),
+      sharpClaws: num("Sharpened Claws", /by (\d+)%/), lotp: num("Leader of the Pack", /by (\d+)%/)
+    };
+  }
+  // --- end talentNumbers
+  const ADDON_ZIP = "https://github.com/gLockwoRkGitHub/forever-gear-planner/releases/download/addon/ForeverSuite.zip";
+  function addonText() {
+    const n4 = (v) => Math.round(v * 10000) / 10000;
+    const map = (o) => Object.keys(o || {}).filter((k) => k.indexOf("__") !== 0 && typeof o[k] === "number" && isFinite(o[k]))
+      .sort().map((k) => k + ":" + n4(o[k])).join(",");
+    const now = new Date();
+    const parts = ["FS1", now.toISOString().slice(0, 10) + " " + now.toTimeString().slice(0, 5)];
+    Object.keys(PROFILES).forEach((key) => {
+      const st = profileState(key), g = gearChar(key);
+      const f = ["k=" + key, "n=" + ((g && g.name) || PROFILES[key].label), "p=" + st.preset,
+        "src=" + st.sources.join(","), "pf=" + st.myProfs.join(","), "rnd=" + (st.random ? 1 : 0), "up=" + (st.onlyUp ? 1 : 0), "lv=" + st.level];
+      if (!isModel(key, st.preset)) f.push("w=" + map(st.weights));
+      if (g && g.talents) f.push("t=" + map(talentNumbers(g.talents)));
+      if (g && g.sheet) {
+        const sh = {};
+        ["str", "agi", "int", "ap", "crit", "spellCrit", "sp"].forEach((k) => { if (typeof g.sheet[k] === "number") sh[k] = g.sheet[k]; });
+        f.push("sh=" + map(sh));
+      }
+      parts.push(f.join(";").replace(/~/g, "-"));
+    });
+    return parts.join("~");
+  }
+  function addonHint(msg) { $("addonHint").textContent = msg; }
+  $("addonZip").href = ADDON_ZIP;
+  $("addonCopy").addEventListener("click", async () => {
+    const text = addonText();
+    try { await navigator.clipboard.writeText(text); addonHint("Kopiert. Im Spiel: /fs import, mit Strg+V einfügen, Import klicken."); }
+    catch (e) { window.prompt("Text fürs Addon (Strg+C):", text); }
+  });
+
   // --- addon ideas (German): each idea can be marked; the marks go to Pasco via share or copy ------------
   const IDEA_GROUPS = [
     { title: "Im Spiel: Hilfe beim Looten und Questen", icon: "⚔", ideas: [
-      { id: "tooltip", t: "Upgrade-Zeile im Tooltip", e: "mittel",
+      { id: "tooltip", st: "done", t: "Upgrade-Zeile im Tooltip", e: "mittel",
         d: "Jeder Item-Tooltip im Spiel zeigt, was das Item für jeden von uns wert ist. Funktioniert bei Loot, Händlern, Auktionshaus und Questbelohnungen.",
         x: "Koda +4.2 · Tato +6.1" },
-      { id: "questpick", t: "Beste Questbelohnung markieren", e: "klein",
+      { id: "questpick", st: "done", t: "Beste Questbelohnung markieren", e: "klein",
         d: "Bietet eine Quest mehrere Belohnungen an, hebt das Addon die beste für deinen Charakter hervor.", x: "★ Ferine Leggings (+14.8)" },
-      { id: "dungeon", t: "Dungeon-Spickzettel", e: "mittel",
+      { id: "dungeon", st: "done", t: "Dungeon-Spickzettel", e: "mittel",
         d: "Beim Betreten eines Dungeons öffnet sich ein kleines Fenster: welcher Boss droppt für wen ein Upgrade. Die Daten kommen aus dem Dungeon-Planer.",
         x: "2 Viscous Fallout – Tato: Hydrocane" } ] },
     { title: "Zu zweit in der Gruppe", icon: "⚑", ideas: [
-      { id: "loot", t: "Loot-Ansage", e: "mittel",
+      { id: "loot", st: "done", t: "Loot-Ansage", e: "mittel",
         d: "Droppt etwas, sehen wir beide sofort, wer mehr davon hat. Kein Rechnen mehr bei Bedarf oder Gier.", x: "Tato +8.0 · Koda +1.5" },
-      { id: "questsync", t: "Quest-Abgleich", e: "mittel",
+      { id: "questsync", st: "done", t: "Quest-Abgleich", e: "mittel",
         d: "Das Addon merkt sich, welche Quests jeder allein erledigt hat, und zeigt dem anderen, was er nachholen muss, damit wir auf demselben Stand bleiben.",
         x: "Koda fehlt: The Offering of Blood, Earthen Echo" },
-      { id: "crits", t: "Crit-Rekorde", e: "klein",
+      { id: "crits", st: "no", t: "Crit-Rekorde", e: "klein",
         d: "Neuer Höchstwert bei einem kritischen Treffer? Das Addon meldet ihn in der Gruppe und führt eine gemeinsame Bestenliste.",
         x: "Neuer Rekord: Tato, Ferocious Bite 412" } ] },
     { title: "Vom Spiel zur Seite", icon: "⇄", ideas: [
-      { id: "doneq", t: "Erledigte Quests ausblenden", e: "klein",
+      { id: "doneq", st: "done", t: "Erledigte Quests ausblenden", e: "klein",
         d: "Belohnungen von Quests, die du schon abgegeben hast, verschwinden aus den Listen der Seite. Ein kurzer Export-Text aus dem Spiel reicht." },
-      { id: "gearnow", t: "Gear sofort aktualisieren", e: "klein",
+      { id: "gearnow", st: "done", t: "Gear sofort aktualisieren", e: "klein",
         d: "Statt auf den stündlichen Abruf und das Ausloggen zu warten, kopierst du dein aktuelles Gear direkt aus dem Spiel in die Seite." },
       { id: "gaps", t: "Datenlücken füllen", e: "mittel",
         d: "Im Spiel siehst du Werte von Items, die Wowhead noch versteckt. Das Addon merkt sie sich mit Boss oder Quest und gibt sie an die Seite weiter." } ] }
@@ -1151,7 +1198,10 @@
       const h = el("h3"); h.appendChild(el("span", "gi", g.icon)); h.appendChild(document.createTextNode(g.title)); sec.appendChild(h);
       g.ideas.forEach((idea) => {
         const art = el("article", "idea" + (votes[idea.id] ? " v-" + votes[idea.id] : ""));
-        const top = el("div", "idea-top"); top.appendChild(el("h4", "", idea.t)); top.appendChild(el("span", "effort", "Aufwand: " + idea.e));
+        const top = el("div", "idea-top"); top.appendChild(el("h4", "", idea.t));
+        if (idea.st === "done") top.appendChild(el("span", "istate done", "Im Addon ✓"));
+        else if (idea.st === "no") top.appendChild(el("span", "istate no", "Geht in Forever nicht"));
+        else top.appendChild(el("span", "effort", "Aufwand: " + idea.e));
         art.appendChild(top);
         art.appendChild(el("p", "", idea.d));
         if (idea.x) { const ex = el("p", "ex"); ex.appendChild(document.createTextNode("Beispiel: ")); ex.appendChild(el("span", "mono", idea.x)); art.appendChild(ex); }

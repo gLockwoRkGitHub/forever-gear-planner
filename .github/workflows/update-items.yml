@@ -1,7 +1,7 @@
 name: Update item data
 
 # Weekly: rebuild data/items.js from the newest WoW Forever game tables, QuestieDB and
-# Wowhead tooltips, commit it, then rebuild the page. The weekly commit also keeps the
+# Wowhead tooltips, commit it, then rebuild the page and the in-game addon. The weekly commit also keeps the
 # repository active, so GitHub does not pause the scheduled workflows.
 on:
   schedule:
@@ -54,7 +54,9 @@ jobs:
             git push
           fi
 
-      - name: Rebuild the page
+      - name: Rebuild the page and the addon
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh workflow run deploy.yml --ref main
+        run: |
+          gh workflow run deploy.yml --ref main
+          gh workflow run addon.yml --ref main

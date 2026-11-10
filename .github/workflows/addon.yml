@@ -1,0 +1,63 @@
+name: Build addon
+
+# Builds the in-game addon (Forever Suite) with the current item data, checks that it ranks gear exactly
+# like the website and that every module runs, then publishes the zip on the release "addon":
+# https://github.com/gLockwoRkGitHub/forever-gear-planner/releases/download/addon/ForeverSuite.zip
+# Runs on changes to the addon or the ranking code, and after the weekly item update (update-items.yml).
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "addon/**"
+      - "scripts/build_addon.py"
+      - "data/mechanics.json"
+      - "site/app.js"
+      - "site/model.js"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: addon
+  cancel-in-progress: false
+
+jobs:
+  addon:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install Lua 5.1
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq lua5.1
+
+      - name: Build addon
+        run: python scripts/build_addon.py
+
+      - name: Test addon (same ranking as the website, all modules run)
+        run: |
+          node addon/tests/parity.js
+          lua5.1 addon/tests/run.lua
+
+      - name: Publish the zip
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION=$(cat build/addon-version.txt)
+          NOTES="Forever Suite ${VERSION} for WoW Forever. Unzip into World of Warcraft/_forever_/Interface/AddOns (the folder ForeverSuite goes directly in there), then type /fs in the game. Rebuilt automatically with every item data update."
+          if gh release view addon >/dev/null 2>&1; then
+            gh release upload addon build/ForeverSuite.zip --clobber
+            gh release edit addon --title "Forever Suite ${VERSION}" --notes "${NOTES}"
+          else
+            gh release create addon build/ForeverSuite.zip --title "Forever Suite ${VERSION}" --notes "${NOTES}" --target main
+          fi
+          echo "Published Forever Suite ${VERSION}" >> "$GITHUB_STEP_SUMMARY"

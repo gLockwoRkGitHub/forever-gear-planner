@@ -1,0 +1,31 @@
+## Interface: 16001
+## Title: |cffd9a441Forever Suite|r
+## Notes: Gear planner and group helpers for WoW Forever: best upgrades per slot for your level, upgrade scores in tooltips, best quest reward, dungeon guide, partner and quest sync.
+## Author: Pasco
+## Version: @VERSION@
+## SavedVariables: ForeverSuiteDB
+## SavedVariablesPerCharacter: ForeverSuiteCharDB
+## IconTexture: Interface\Icons\INV_Misc_Book_11
+## Category: Forever Suite
+## AddonCompartmentFunc: ForeverSuite_OnAddonCompartmentClick
+
+Core\Init.lua
+Core\Util.lua
+Core\Comm.lua
+Data\Meta.lua
+Data\Items.lua
+Modules\GearPlanner\Profiles.lua
+Modules\GearPlanner\Model.lua
+Modules\GearPlanner\Engine.lua
+Modules\GearPlanner\State.lua
+Modules\GearPlanner\Import.lua
+Core\UI.lua
+Core\Window.lua
+Modules\GearPlanner\GearTab.lua
+Modules\DungeonGuide.lua
+Modules\QuestSync.lua
+Modules\Tooltip.lua
+Modules\QuestReward.lua
+Modules\Partner.lua
+Core\SettingsTab.lua
+Core\Minimap.lua

@@ -13,12 +13,17 @@ many upgrades they hold. The page works on phones.
 
 The published page is password protected and only readable with the password.
 
+**In the game:** the addon [Forever Suite](addon/README.md) brings the planner into WoW Forever: best upgrades
+per slot for the live level and gear, upgrade scores in tooltips, best quest reward, dungeon guide, loot hints,
+and gear and quest sync with your partner. [Download the zip](https://github.com/gLockwoRkGitHub/forever-gear-planner/releases/download/addon/ForeverSuite.zip).
+
 ## How it updates
 
 | Workflow | When | What it does |
 |---|---|---|
 | `deploy.yml` | every hour, on push, manually | Fetches level and equipped gear of both characters, builds the page, encrypts it with the password, publishes it on GitHub Pages |
-| `update-items.yml` | weekly (Monday), manually | Rebuilds the item database from the newest game data, commits `data/items.js`, then runs `deploy.yml` |
+| `update-items.yml` | weekly (Monday), manually | Rebuilds the item database from the newest game data, commits `data/items.js`, then runs `deploy.yml` and `addon.yml` |
+| `addon.yml` | after the item update, on addon changes, manually | Builds the addon zip, tests it against the website's ranking, publishes it on the release `addon` |
 
 Character data comes from the **Blizzard API** when the Blizzard secrets are set, otherwise from
 [armorywowforever.com](https://armorywowforever.com). If a fetch fails, the last good result is used and
