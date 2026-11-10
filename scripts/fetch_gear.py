@@ -264,6 +264,95 @@ def fetch_blizzard(region, server, name, token, remembered):
             "lastLogin": prof.get("last_login_timestamp"), "source": "blizzard", "items": items}, loc
 
 
+# ------------------------------------------------------------------ talents and character sheet
+def walk(o):
+    if isinstance(o, dict):
+        yield o
+        for v in o.values():
+            yield from walk(v)
+    elif isinstance(o, list):
+        for v in o:
+            yield from walk(v)
+
+
+def blizzard_talents(region, token, loc):
+    d = blizzard_try(region, token, loc["ns"], loc.get("realm"), loc["slug"], "/specializations")
+    if VERBOSE:
+        log("  raw specializations: " + json.dumps(d)[:1500])
+    out = []
+    for o in walk(d):
+        tip = o.get("spell_tooltip")
+        if isinstance(tip, dict):
+            sp = tip.get("spell") or {}
+            out.append({"n": sp.get("name") or (o.get("talent") or {}).get("name"), "r": o.get("talent_rank") or o.get("rank") or 1,
+                        "d": tip.get("description") or ""})
+    return [t for t in out if t["n"]]
+
+
+def val(x, *keys):
+    """A number from Blizzard's statistics: plain, or {effective}, {value}, {base}."""
+    if isinstance(x, (int, float)):
+        return x
+    if isinstance(x, dict):
+        for k in keys or ("effective", "value", "base"):
+            if isinstance(x.get(k), (int, float)):
+                return x[k]
+    return None
+
+
+def blizzard_sheet(region, token, loc):
+    d = blizzard_try(region, token, loc["ns"], loc.get("realm"), loc["slug"], "/statistics")
+    if VERBOSE:
+        log("  raw statistics: " + json.dumps(d)[:1500])
+    sheet = {"str": val(d.get("strength")), "agi": val(d.get("agility")), "int": val(d.get("intellect")),
+             "sta": val(d.get("stamina")), "spi": val(d.get("spirit")), "ap": val(d.get("attack_power")),
+             "crit": val(d.get("melee_crit"), "value"), "spellCrit": val(d.get("spell_crit"), "value"),
+             "sp": val(d.get("spell_power")), "mana": val(d.get("power"))}
+    return {k: v for k, v in sheet.items() if v is not None}
+
+
+def armory_extras(region, server, name):
+    url = f"https://armorywowforever.com/api/character/forever/{region}/{server}/{urllib.parse.quote(name)}"
+    d = get_json(url)
+    talents = []
+    for spec in d.get("talents") or []:
+        if not spec.get("active", True):
+            continue
+        for tree in spec.get("trees", []):
+            for t in tree.get("talents", []):
+                talents.append({"n": t.get("name"), "r": t.get("rank") or 1, "d": t.get("description") or ""})
+    st = d.get("stats") or {}
+    sheet = {"str": st.get("strength"), "agi": st.get("agility"), "int": st.get("intellect"), "sta": st.get("stamina"),
+             "spi": st.get("spirit"), "ap": st.get("attackPower"), "crit": st.get("meleeCrit"), "spellCrit": st.get("spellCrit"),
+             "sp": st.get("spellPower"), "mana": st.get("power")}
+    return talents, {k: v for k, v in sheet.items() if v is not None}
+
+
+def add_extras(result, region, server, name, token, loc):
+    """Talents (with their descriptions) and the character sheet, for the page's level model."""
+    talents, sheet, src = [], {}, None
+    if token and loc:
+        try:
+            talents = blizzard_talents(region, token, loc)
+            sheet = blizzard_sheet(region, token, loc)
+            src = "blizzard"
+        except Exception as e:  # noqa: BLE001
+            log(f"{name}: Blizzard talents/statistics failed ({e})")
+    if not talents or len(sheet) < 5:
+        try:
+            a_t, a_s = armory_extras(region, server, name)
+            talents = talents or a_t
+            sheet = sheet if len(sheet) >= 5 else a_s
+            src = src or "armory"
+        except Exception as e:  # noqa: BLE001
+            log(f"{name}: armory talents/stats failed ({e})")
+    if talents:
+        result["talents"] = talents
+    if sheet:
+        result["sheet"] = sheet
+    log(f"{name}: {len(talents)} talents, sheet {sheet} via {src}")
+
+
 # ------------------------------------------------------------------ main
 def log_items(label, result):
     log(f"  {label}:")
@@ -302,11 +391,14 @@ def main():
                 locations[key] = loc
             except Exception as e:  # noqa: BLE001
                 log(f"{name}: Blizzard API failed ({e}); trying the armory")
+                loc = None
         if result is None:
             try:
                 result = fetch_armory(region, server, name)
             except Exception as e:  # noqa: BLE001
                 log(f"{name}: armory failed ({e})")
+        if result is not None:
+            add_extras(result, region, server, name, token, locations.get(key) if token else None)
         if result is None and key in prev["chars"]:
             result = dict(prev["chars"][key], stale=True)
             log(f"{name}: using the last good result from {prev.get('fetched')}")

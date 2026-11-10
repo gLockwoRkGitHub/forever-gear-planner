@@ -26,7 +26,8 @@ WORK = CACHE / "build"
 TT_DIR = CACHE / "tooltips"
 QDB = CACHE / "questiedb"
 DELTA = WORK / "delta"
-TABLES = ["Item", "ItemSparse", "SpellEffect", "SkillLineAbility", "SkillLine", "AreaTable", "Map", "DungeonEncounter"]
+TABLES = ["Item", "ItemSparse", "SpellEffect", "SkillLineAbility", "SkillLine", "AreaTable", "Map", "DungeonEncounter",
+          "SpellName", "SpellLevels", "SpellPower"]
 QDB_URL = "https://github.com/Questie/QuestieDB"
 QDB_PATHS = ["data/Forever", "src/corrections/Forever/generated", "src/corrections/enum", "support/Forever/Zones"]
 DELTA_FILES = ["foreverBaseItem.lua", "foreverBaseQuest.lua", "foreverBaseNpc.lua", "foreverBaseObject.lua"]
@@ -109,6 +110,8 @@ def main():
     extra = json.loads((WORK / "ids_extra.json").read_text())
     if extra:
         tooltips.fetch_many(extra, TT_DIR, log_every=0)
+    log("ability rank tables for the level model")
+    run([py, str(ROOT / "scripts/extract_mechanics.py"), str(WORK), str(ROOT / "data/mechanics.json")])
     log("assembling")
     run([py, str(ROOT / "scripts/assemble.py"), str(WORK), str(QDB), str(TT_DIR), str(ROOT / "data/items.js"), version])
     meta = {

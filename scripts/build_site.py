@@ -17,7 +17,10 @@ def main():
     gear_path = ROOT / "build" / "gear.json"
     gear = json.loads(gear_path.read_text(encoding="utf-8")) if gear_path.exists() else None
 
-    data_js = items_js + "\nwindow.GEAR_STATE = " + json.dumps(gear, separators=(",", ":")) + ";\n"
+    mech_path = ROOT / "data" / "mechanics.json"
+    mech = json.loads(mech_path.read_text(encoding="utf-8")) if mech_path.exists() else None
+    data_js = (items_js + "\nwindow.GEAR_STATE = " + json.dumps(gear, separators=(",", ":")) + ";\n"
+               + "window.MECH = " + json.dumps(mech, separators=(",", ":")) + ";\n")
     safe = lambda s: s.replace("</script", "<\\/script")  # noqa: E731
     for marker in ("/*__GEAR_DATA__*/", "/*__APP_JS__*/", "<!--BODY-->", "<!--LOCAL_ONLY-->"):
         assert marker in template, f"template is missing {marker}"
