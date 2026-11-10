@@ -116,7 +116,7 @@ end
 function W:Show(id)
   if not self.frame then self:Create() end
   self.frame:Show()
-  self:Select(id or self.current or FS.db.window.tab or "gear")
+  self:Select(id or self.current or FS.db.window.tab or "overview")
 end
 
 function W:Toggle()

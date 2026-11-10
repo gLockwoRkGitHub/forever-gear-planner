@@ -182,7 +182,7 @@ end)
 local function help()
   FS:Print("commands:")
   print("  /fs                  open or close the window")
-  print("  /fs gear | dungeons | quests | settings   open a tab")
+  print("  /fs overview | gear | dungeons | quests | settings   open a tab")
   print("  /fs import           paste the text from the website")
   print("  /fs modules          list modules")
   print("  /fs module <id> on|off")
@@ -197,7 +197,7 @@ SlashCmdList.FOREVERSUITE = function(msg)
   cmd = (cmd or ""):lower()
   if cmd == "" then
     if FS.Window then FS.Window:Toggle() end
-  elseif cmd == "gear" or cmd == "dungeons" or cmd == "quests" or cmd == "settings" then
+  elseif cmd == "overview" or cmd == "gear" or cmd == "dungeons" or cmd == "quests" or cmd == "settings" then
     if FS.Window then FS.Window:Show(cmd) end
   elseif cmd == "import" then
     if FS.Import then FS.Import:ShowDialog() end

@@ -150,8 +150,9 @@ local function weaponOf(items)
   for _, e in ipairs(items or {}) do if e.slot == "Two-Hand" then w = e.it; break end end
   if not w then return { min = 0, max = 0, speed = 2, dps = 0 } end
   local spd = w.speed or 2
-  local lo = w.dmgMin or (w.dps or 0) * spd * 0.85
-  local hi = w.dmgMax or (w.dps or 0) * spd * 1.15
+  local add = w.enchDmg or 0                                -- permanent "Weapon Damage +N" enchant
+  local lo = (w.dmgMin or (w.dps or 0) * spd * 0.85) + add
+  local hi = (w.dmgMax or (w.dps or 0) * spd * 1.15) + add
   return { min = lo, max = hi, speed = spd, dps = (lo + hi) / 2 / spd }
 end
 M.weaponOf = weaponOf

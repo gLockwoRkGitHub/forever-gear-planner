@@ -23,6 +23,7 @@ Modules\GearPlanner\Import.lua
 Core\UI.lua
 Core\Window.lua
 Modules\GearPlanner\GearTab.lua
+Modules\GearPlanner\OverviewTab.lua
 Modules\DungeonGuide.lua
 Modules\QuestSync.lua
 Modules\Tooltip.lua

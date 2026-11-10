@@ -34,6 +34,7 @@ local function encodeItem(slot, it)
   if it.live or it.unknown then
     for k, v in pairs(it.st or {}) do if type(v) == "number" then extra[#extra + 1] = k .. "_" .. num(v) end end
   end
+  if it.enchDmg then extra[#extra + 1] = "_enchDmg_" .. num(it.enchDmg) end
   if it.unknown then
     extra[#extra + 1] = "_ty_" .. (TYPE_INDEX[it.ty] or 1)
     for _, k in ipairs({ "dps", "speed", "dmgMin", "dmgMax" }) do

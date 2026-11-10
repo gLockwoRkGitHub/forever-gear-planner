@@ -3,7 +3,8 @@
 -- (talents on non-English clients) and takes over the filters and weights picked on the page.
 --
 -- Format: FS1~<date>~<char>~<char>   char = k=shaman;n=Koda Ashmane;p=<preset>;w=str:1,agi:0.4;
---         src=Quest,Dungeon;pf=Enchanting;rnd=0;up=1;lv=34;t=flurry:25,storm:1;sh=str:120,agi:60,...
+--         src=Quest,Dungeon;pf=Enchanting;rnd=0;up=1;lv=34;t=flurry:25,storm:1;sh=str:120,agi:60,...;
+--         sl=34 (level of the sheet); we=271766:5 (weapon damage enchant on the equipped two-hander)
 local _, FS = ...
 local G, U = FS.Gear, FS.U
 local Imp = {}
@@ -29,6 +30,7 @@ function Imp.Parse(text)
         name = kv.n, preset = kv.p, weights = FS.Comm.decodeMap(kv.w), sources = kv.src and list(kv.src) or nil,
         profs = kv.pf and list(kv.pf) or nil, random = kv.rnd == "1", onlyUp = kv.up ~= "0", level = tonumber(kv.lv),
         tal = kv.t and FS.Comm.decodeMap(kv.t) or nil, sheet = kv.sh and FS.Comm.decodeMap(kv.sh) or nil,
+        sheetLevel = tonumber(kv.sl), weaponEnchant = kv.we and FS.Comm.decodeMap(kv.we) or nil,
       }
     end
   end

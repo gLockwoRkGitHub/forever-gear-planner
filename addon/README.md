@@ -13,7 +13,7 @@ Every module can be switched off on the Settings tab or with `/fs module <id> of
 
 | Module | id | What it does |
 |---|---|---|
-| Gear planner | `planner` | Gear tab: per slot what you wear and the best upgrades for your level (or a level you pick), where they drop, the next upgrade within 3 levels. Finished quests are left out, items in your bags are marked. |
+| Gear planner | `planner` | Overview tab: per slot the best upgrade, where it comes from and the gain, biggest first, with the best places to go. Gear tab: per slot what you wear and the best upgrades for your level (or a level you pick), where they drop, the next upgrade within 3 levels. Finished quests are left out, items in your bags are marked. |
 | Dungeon guide | `dungeon` | Dungeons tab: dungeons ranked by upgrades for you and your partner, boss by boss who gains what. Entering a dungeon prints a summary and opens the tab. |
 | Tooltip scores | `tooltip` | Every item tooltip: `Forever Suite  You +4.2 · Tato +6.1`. |
 | Best quest reward | `questreward` | Gold star on the best reward, a coin on the most valuable one when nothing is an upgrade. |
@@ -30,8 +30,10 @@ New ideas become new modules: `FS:NewModule(id, { title, desc, order })` with `O
 | | Source |
 |---|---|
 | Items, sources, ability ranks | Built into the addon (`scripts/build_addon.py` from `data/items.js`, `data/mechanics.json`) |
-| Level, gear (exact random-suffix stats), bags, finished quests, professions, character sheet | The game, live |
+| Level, gear (exact random-suffix stats), bags, finished quests, professions | The game, live |
 | Talents | The game on English clients; otherwise the website import |
+| Character sheet for the level model | The website import while it is for your current level (same numbers as the page, no buffs); otherwise the game, live |
+| Weapon damage enchant | The website import (for the equipped two-hander) |
 | Stat-weight preset, custom weights, filters | Settings tab, or taken over from the website import |
 
 **Website import:** planner page, tab *Addon*, *Text fürs Addon kopieren*; in the game `/fs import`, paste,

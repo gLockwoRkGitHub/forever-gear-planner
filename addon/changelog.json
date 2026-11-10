@@ -1,5 +1,14 @@
 [
   {
+    "version": "1.2.0",
+    "date": "2026-11-10",
+    "changes": [
+      "Neuer Reiter „Overview“ wie auf der Seite: pro Slot das beste Upgrade mit Ort und Gewinn, größter Gewinn zuerst, dazu die besten Orte zum Hingehen. Ein Klick öffnet den Slot im Gear-Reiter.",
+      "Addon und Seite rechnen jetzt gleich: Das Addon nimmt die Charakterwerte der Seite (ohne Buffs), solange sie zu deinem Level passen, und berücksichtigt die Waffenverzauberung (z. B. Waffenschaden +5). Bitte den Import-Text einmal neu kopieren.",
+      "Gear-Reiter: Die Top-Liste ist nummeriert und zeigt pro Slot, wie viele Upgrades es gibt. Items, die du erst später tragen kannst, stehen nicht mehr als zusätzlicher Listeneintrag, sondern als Hinweis „Coming up at level …“ darunter."
+    ]
+  },
+  {
     "version": "1.1.1",
     "date": "2026-11-10",
     "changes": [

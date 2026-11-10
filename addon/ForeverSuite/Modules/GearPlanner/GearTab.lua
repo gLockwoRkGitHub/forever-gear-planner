@@ -154,6 +154,8 @@ local function build(panel)
   local headers = UI.Pool(UI.Header)
   local rows = UI.Pool(UI.ItemRow)
   local lines = UI.Pool(UI.Line)
+  local notes = UI.Pool(UI.ItemNote)
+  local slotY = {}
 
   local msg = UI.Text(panel, "GameFontHighlight", "", "LEFT")
   msg:SetPoint("TOPLEFT", 4, -96)
@@ -162,7 +164,7 @@ local function build(panel)
 
   function tab:Refresh()
     local st = S.self
-    headers:Reset(); rows:Reset(); lines:Reset()
+    headers:Reset(); rows:Reset(); lines:Reset(); notes:Reset()
     if not st then
       head:Hide(); scroll:Hide()
       local _, cls = UnitClass("player")
@@ -192,13 +194,18 @@ local function build(panel)
     local y = 0
     for _, slot in ipairs(G.SLOTS) do
       local d = G:SlotData(st, slot, st.level, st.settings.topN)
+      slotY[slot] = y
       local h = headers:Get(content)
       h:SetPoint("TOPLEFT", 0, -y)
       h:SetPoint("RIGHT", content, "RIGHT")
       h.text:SetText(slot == "Relic" and ("Relic · " .. st.prof.relic) or slot)
-      h.right:SetText(wornText(d.eq, d.w))
+      local ups = 0
+      if d.base then for _, p in ipairs(d.pool) do if p.s > d.base + 0.05 then ups = ups + 1 end end end
+      local counts = slot == "Relic" and "" or ((d.base and (ups .. " upgrade" .. (ups == 1 and "" or "s") .. " · ") or "")
+        .. #d.pool .. " option" .. (#d.pool == 1 and "" or "s") .. "   ")
+      h.right:SetText("|cff888888" .. counts .. "|r" .. wornText(d.eq, d.w))
       y = y + 26
-      for _, p in ipairs(d.top) do
+      for i, p in ipairs(d.top) do
         local r = rows:Get(content)
         r:SetPoint("TOPLEFT", 0, -y)
         r:SetPoint("RIGHT", content, "RIGHT")
@@ -206,7 +213,7 @@ local function build(panel)
         if st.bags and st.bags[p.it.id] then sub = "|cff40ff40in your bags|r · " .. sub end
         local rightText = d.base and U.colorDelta(p.s - d.base) or ("%.1f"):format(p.s)
         r:SetItem(p.it, rightText, sub, ("score %.1f"):format(p.s) .. ((p.it.rq or 0) > 0 and (" · req " .. p.it.rq) or ""))
-        r:SetAlpha(1)
+        r:SetRank(i)
         y = y + 33
       end
       if #d.top == 0 then
@@ -217,18 +224,28 @@ local function build(panel)
         y = y + 20
       end
       if d.next then
-        local r = rows:Get(content)
-        r:SetPoint("TOPLEFT", 0, -y)
-        r:SetPoint("RIGHT", content, "RIGHT")
+        -- not wearable yet: a note under the list, like the website's "Coming up at level ..."
+        local n = notes:Get(content)
+        n:SetPoint("TOPLEFT", 0, -y)
+        n:SetPoint("RIGHT", content, "RIGHT")
         local gain = d.base and (d.next.s - d.base) or d.next.s
-        r:SetItem(d.next.it, "|cffffcc00" .. U.delta(gain) .. "|r", "|cffffcc00from level " .. d.next.L .. "|r · " .. sourceText(d.next.it, d.next.L, st),
-          ("score %.1f"):format(d.next.s))
-        r:SetAlpha(0.75)
-        y = y + 33
+        local t, txt = G.ShortSource(d.next.it, d.next.L, st)
+        n.item = d.next.it
+        n.text:SetText("|cff888888Coming up at level " .. d.next.L .. ":|r |cff" .. U.qualityHex(d.next.it.q) .. d.next.it.n .. "|r"
+          .. (t and (" |cff888888· " .. t .. " " .. txt .. "|r") or ""))
+        n.right:SetText("|cffffcc00" .. U.delta(gain) .. "|r")
+        y = y + 22
       end
       y = y + 8
     end
     scroll:SetContentHeight(y)
+  end
+
+  function tab:ScrollToSlot(slot)
+    local y = slotY[slot]
+    if not y then return end
+    local _, maxV = scroll.bar:GetMinMaxValues()
+    scroll.bar:SetValue(math.min(maxV, y))
   end
   return tab
 end

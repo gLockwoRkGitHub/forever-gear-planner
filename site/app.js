@@ -1150,7 +1150,12 @@
         const sh = {};
         ["str", "agi", "int", "ap", "crit", "spellCrit", "sp", "dodge", "parry"].forEach((k) => { if (typeof g.sheet[k] === "number") sh[k] = g.sheet[k]; });
         f.push("sh=" + map(sh));
+        if (g.level) f.push("sl=" + g.level);                       // level the sheet was taken at
       }
+      // permanent weapon damage enchant on the equipped two-hander (the model adds it to the weapon)
+      const wpn = g && g.items ? g.items.find((e) => e.slot === "Two-Hand") : null;
+      const wd = wpn && /Weapon Damage \+(\d+)/.exec(wpn.ench || "");
+      if (wd) f.push("we=" + wpn.id + ":" + wd[1]);
       parts.push(f.join(";").replace(/~/g, "-"));
     });
     return parts.join("~");

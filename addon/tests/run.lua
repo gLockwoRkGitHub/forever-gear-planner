@@ -22,8 +22,9 @@ local function importText(sc, name)
     for _, k in ipairs(keys) do out[#out + 1] = k .. ":" .. t[k] end
     return table.concat(out, ",")
   end
-  return ("FS1~2026-11-10 12:00~k=%s;n=%s;p=%s;src=Quest,Dungeon,Vendor,Crafted;pf=%s;rnd=0;up=1;lv=%d;t=%s;sh=%s")
-    :format(sc.key, name, sc.preset, sc.key == "shaman" and "Enchanting" or "", sc.level, map(sc.tal), map(sc.sheet))
+  return ("FS1~2026-11-10 12:00~k=%s;n=%s;p=%s;src=Quest,Dungeon,Vendor,Crafted;pf=%s;rnd=0;up=1;lv=%d;t=%s;sh=%s;sl=%d%s")
+    :format(sc.key, name, sc.preset, sc.key == "shaman" and "Enchanting" or "", sc.level, map(sc.tal), map(sc.sheet), sc.level,
+      sc.we and (";we=" .. sc.we) or "")
 end
 
 local function boot(sc)
@@ -35,7 +36,8 @@ local function boot(sc)
   g.name = sc.key == "shaman" and "Koda" or "Tato"
   g.level = sc.level
   g.stats = { sc.sheet.str, sc.sheet.agi, 50, sc.sheet.int, 40 }
-  g.ap, g.crit, g.spellCrit, g.sp = sc.sheet.ap, sc.sheet.crit, sc.sheet.spellCrit, sc.sheet.sp
+  -- the live sheet carries buffs (+40 AP): the website's sheet for the same level must win
+  g.ap, g.crit, g.spellCrit, g.sp = sc.sheet.ap + 40, sc.sheet.crit, sc.sheet.spellCrit, sc.sheet.sp
   g.dodge, g.parry = sc.sheet.dodge, sc.sheet.parry
   g.professions = sc.key == "shaman" and { 333, 393 } or { 393, 182 }
   for inv, id in pairs(sc.inventory) do
@@ -66,6 +68,8 @@ for i, sc in ipairs(expected) do
   local st = S.self
   check(st and st.key == sc.key, "scenario " .. i .. ": profile " .. sc.key)
   check(st.talSrc == "website", "scenario " .. i .. ": talents from the import")
+  check(st.sheetSrc == "website", "scenario " .. i .. ": character sheet from the import (same level)")
+  if sc.we then check(st.equipped["Two-Hand"][1].enchDmg == 5, "scenario " .. i .. ": weapon enchant from the import") end
   local w = S:Weights(st, sc.level)
   check((w.__model ~= nil) == sc.model, "scenario " .. i .. ": model used " .. tostring(sc.model))
   for k, v in pairs(sc.weights) do
@@ -105,7 +109,7 @@ M.printed = {}
 -- window and all tabs
 SlashCmdList.FOREVERSUITE("")
 check(FS.Window.frame and FS.Window.frame:IsShown(), "window opens with /fs")
-for _, tab in ipairs({ "gear", "dungeons", "quests", "settings" }) do
+for _, tab in ipairs({ "overview", "gear", "dungeons", "quests", "settings" }) do
   SlashCmdList.FOREVERSUITE(tab)
   check(FS.Window.current == tab, "tab " .. tab .. " opens")
 end
@@ -115,6 +119,18 @@ check(S.self.level == 40, "preview level 40")
 SlashCmdList.FOREVERSUITE("gear")
 S:SetPreviewLevel(nil)
 check(S.self.level == S.self.liveLevel, "back to live level")
+
+-- overview tab: rows by gain, a click opens the slot on the Gear tab
+SlashCmdList.FOREVERSUITE("overview")
+local ov = FS.Window:Tab("overview")
+check(ov and ov.obj and FS.Window.current == "overview", "overview tab opens")
+local firstRow
+for _, f in ipairs(M.frames) do
+  if f._shown and f.onClick and f.item and f._parent and f._parent._parent and f._parent._parent._parent == ov.panel then firstRow = firstRow or f end
+end
+check(firstRow ~= nil, "overview lists upgrades")
+if firstRow then firstRow:Click() end
+check(FS.Window.current == "gear", "overview row opens the Gear tab")
 
 -- tooltip line on an item
 GameTooltip:SetItemByID(10570)
@@ -266,7 +282,7 @@ M.runTimers(2)
 check(S.self.equipped["Two-Hand"][1].id == 10570, "gear change picked up")
 
 -- hover and click everything on every tab once
-for _, tab in ipairs({ "gear", "dungeons", "quests", "settings" }) do
+for _, tab in ipairs({ "overview", "gear", "dungeons", "quests", "settings" }) do
   SlashCmdList.FOREVERSUITE(tab)
   M.runTimers(1)
   local snapshot = {}
@@ -298,7 +314,7 @@ do
   M2.fire("PLAYER_ENTERING_WORLD")
   M2.runTimers(5)
   check(FS2.Gear.State.self == nil, "warrior: no profile")
-  for _, tab in ipairs({ "gear", "dungeons", "quests", "settings" }) do SlashCmdList.FOREVERSUITE(tab) end
+  for _, tab in ipairs({ "overview", "gear", "dungeons", "quests", "settings" }) do SlashCmdList.FOREVERSUITE(tab) end
   GameTooltip:SetItemByID(10400)
   check(not M2.errors, "warrior: no Lua errors")
 end
@@ -313,7 +329,10 @@ do
   M3.game.ap = 999
   M3.fire("UPDATE_SHAPESHIFT_FORM")
   M3.runTimers(3)
-  check(S3.self.sheet.ap == sc.sheet.ap and S3.self.sheetSrc == "saved", "druid: cat form does not change the sheet")
+  check(S3.self.sheet.ap == sc.sheet.ap + 40 and S3.self.sheetSrc == "saved", "druid: cat form does not change the sheet")
+  -- an imported sheet from another level is not used: the game's own counts
+  FS3.Import.Apply(assert(FS3.Import.Parse(("FS1~x~k=druid;n=Tato;p=Level model (Cat);sh=str:1,agi:1,ap:1,crit:1;sl=%d"):format(sc.level - 1))))
+  check(S3.self.sheetSrc ~= "website", "druid: website sheet of an older level is ignored")
   check(not M3.errors, "druid: no Lua errors")
 end
 

@@ -114,19 +114,24 @@ local function imported(key)
   return imp and imp.chars and imp.chars[key], imp and imp.date
 end
 
+-- The character sheet the level model starts from. The website's (Blizzard's, taken at logout, without
+-- buffs) when it is for your current level, so addon and website rank the same; otherwise the game's own,
+-- read live (buffs included). Druids: only the caster-form sheet counts.
 function S:ReadSheet(st)
   local sh = liveSheet()
   if sh and st.key == "druid" and GetShapeshiftFormID then
     local ok, form = pcall(GetShapeshiftFormID)
-    if ok and form then sh = nil end          -- the model wants the caster-form sheet
+    if ok and form then sh = nil end
   end
-  if sh then
-    FS.cdb.sheet = sh
+  if sh then FS.cdb.sheet = sh end
+  local imp = imported(st.key)
+  if imp and imp.sheet and imp.sheetLevel and imp.sheetLevel == st.liveLevel then
+    st.sheet, st.sheetSrc = imp.sheet, "website"
+  elseif sh then
     st.sheet, st.sheetSrc = sh, "game"
   elseif FS.cdb.sheet then
     st.sheet, st.sheetSrc = FS.cdb.sheet, "saved"
   else
-    local imp = imported(st.key)
     st.sheet, st.sheetSrc = imp and imp.sheet, imp and imp.sheet and "website" or nil
   end
 end
@@ -151,6 +156,12 @@ function S:ScanEquipped(st)
     local link = GetInventoryItemLink and GetInventoryItemLink("player", inv)
     if link and not U.secret(link) then
       local it = G:ItemFromLink(link)
+      local imp = imported(st.key)
+      local we = imp and imp.weaponEnchant
+      if it and slot == "Two-Hand" and we and we[tostring(it.id)] then
+        it = U.copy(it)                                   -- permanent weapon damage enchant (website import)
+        it.enchDmg = we[tostring(it.id)]
+      end
       if it and (it.sl == slot or (slot == "Two-Hand" and it.sl == "Two-Hand")) then
         local list = st.equipped[slot] or {}
         list[#list + 1] = it
@@ -243,12 +254,13 @@ function S:SetPartner(name, data)
   for _, g in ipairs(data.gear or {}) do
     local base = G.byId[g.id]
     local it
-    if base and not g.st then
+    if base and not g.st and not g.enchDmg then
       it = base
     elseif base then
       it = U.copy(base); it.st = U.copy(base.st)
-      for k, v in pairs(g.st) do it.st[k] = v end
-      it.live = true
+      for k, v in pairs(g.st or {}) do it.st[k] = v end
+      it.live = g.st ~= nil
+      it.enchDmg = g.enchDmg
     else
       it = { id = g.id, n = "item " .. g.id, sl = g.slot, ty = g.ty or "Misc", st = g.st or {}, src = {}, unknown = true,
         dps = g.dps, speed = g.speed, dmgMin = g.dmgMin, dmgMax = g.dmgMax, q = 1, il = 0 }

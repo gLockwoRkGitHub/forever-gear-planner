@@ -201,6 +201,10 @@ function UI.ItemRow(parent)
   local hl = r:CreateTexture(nil, "HIGHLIGHT")
   hl:SetAllPoints()
   hl:SetColorTexture(1, 1, 1, 0.05)
+  local rank = UI.Text(r, "GameFontDisable", "", "CENTER")
+  rank:SetWidth(16)
+  rank:SetPoint("LEFT", 2, 0)
+  r.rank = rank
   local ic = r:CreateTexture(nil, "ARTWORK")
   ic:SetSize(24, 24)
   ic:SetPoint("LEFT", 4, 0)
@@ -227,6 +231,8 @@ function UI.ItemRow(parent)
   r:SetScript("OnClick", rowClick)
   function r:SetItem(it, rightText, subText, right2Text)
     self.item = it
+    self.extra, self.onClick, self.tip = nil, nil, nil
+    self:SetRank(nil)
     self.icon:SetTexture(it and it.ic and ("Interface\\Icons\\" .. it.ic) or (it and U.ItemInfoInstant(it.id) and U.ItemInfoInstant(it.id).icon) or 134400)
     self.icon:Show()
     self.name:SetText(it and ("|cff" .. U.qualityHex(it.q) .. (it.n or "?") .. "|r") or "")
@@ -234,8 +240,16 @@ function UI.ItemRow(parent)
     self.right2:SetText(right2Text or "")
     self.sub:SetText(subText or "")
   end
+  -- a rank number in front of the icon (nil: none)
+  function r:SetRank(n)
+    self.icon:ClearAllPoints()
+    self.icon:SetPoint("LEFT", n and 22 or 4, 0)
+    self.rank:SetText(n and tostring(n) or "")
+  end
   function r:SetPlain(text, subText, rightText)
     self.item = nil
+    self.extra, self.onClick, self.tip = nil, nil, nil
+    self:SetRank(nil)
     self.icon:Hide()
     self.name:SetText(text or "")
     self.sub:SetText(subText or "")
@@ -280,6 +294,26 @@ function UI.Header(parent)
   r:SetPoint("LEFT", t, "RIGHT", 10, 0)
   r:SetTextColor(0.62, 0.6, 0.53)
   f.right = r
+  return f
+end
+
+-- a one-line note about an item (hover shows the item), e.g. "Coming up at level 35: ..."
+function UI.ItemNote(parent)
+  local f = CreateFrame("Button", nil, parent)
+  f:SetHeight(20)
+  local hl = f:CreateTexture(nil, "HIGHLIGHT")
+  hl:SetAllPoints()
+  hl:SetColorTexture(1, 1, 1, 0.04)
+  local r = UI.Text(f, "GameFontHighlightSmall", "", "RIGHT")
+  r:SetPoint("RIGHT", -6, 0)
+  f.right = r
+  local t = UI.Text(f, "GameFontHighlightSmall", "")
+  t:SetPoint("LEFT", 6, 0)
+  t:SetPoint("RIGHT", r, "LEFT", -8, 0)
+  f.text = t
+  f:SetScript("OnEnter", rowEnter)
+  f:SetScript("OnLeave", function() GameTooltip:Hide() end)
+  f:SetScript("OnClick", rowClick)
   return f
 end
 
