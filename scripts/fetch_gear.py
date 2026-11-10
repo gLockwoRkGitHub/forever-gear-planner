@@ -147,6 +147,7 @@ def fetch_armory(region, server, name):
 
 # ------------------------------------------------------------------ Blizzard API
 VERBOSE = bool(os.environ.get("GEAR_VERBOSE"))
+TEMP_ENCHANT = re.compile(r"^(Windfury|Rockbiter|Flametongue|Frostbrand|Sharpened|Weighted|.*Poison|.*Oil)\b.*", re.I)
 def blizzard_token(region, cid, secret):
     auth = base64.b64encode(f"{cid}:{secret}".encode()).decode()
     d = get_json("https://oauth.battle.net/token", headers={"Authorization": f"Basic {auth}",
@@ -222,7 +223,8 @@ def fetch_blizzard(region, server, name, token, remembered):
             st.setdefault(k, v)
         # permanent enchants only (skips weapon imbues like Windfury), without the "Enchanted: " prefix
         ench = [re.sub(r"^Enchanted:\s*", "", e["display_string"]) for e in i.get("enchantments", [])
-                if e.get("display_string") and e.get("enchantment_slot", {}).get("type") != "TEMPORARY"]
+                if e.get("display_string") and "TEMP" not in str(e.get("enchantment_slot", {}).get("type", "")).upper()]
+        ench = [e for e in ench if not TEMP_ENCHANT.match(e)]
         if ench:
             entry["ench"] = "; ".join(ench)
         items.append(entry)

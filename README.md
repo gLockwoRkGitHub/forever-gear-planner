@@ -22,7 +22,12 @@ The published page is password protected and only readable with the password.
 
 Character data comes from the **Blizzard API** when the Blizzard secrets are set, otherwise from
 [armorywowforever.com](https://armorywowforever.com). If a fetch fails, the last good result is used and
-marked as older.
+marked as older. WoW Forever has no realms: the API addresses characters as
+`/profile/wow/character/{name}-{surname}` in the `profile-forever-{region}` namespace. Characters show up
+there from level 10, after logging out once.
+
+To check the fetched data, run *Build and deploy* manually with **Log every fetched item** ticked: the log
+then lists every equipped item with its stats (Blizzard and armory side by side).
 
 Item data comes from the WoW Forever game tables on [wago.tools](https://wago.tools), quest, NPC and vendor
 data from [QuestieDB](https://github.com/Questie/QuestieDB), and item tooltips from
@@ -61,8 +66,8 @@ python scripts/build_site.py       # page -> build/index.html (unencrypted, open
 
 ## Notes
 
-- Random-suffix items ("of the Gorilla") are shown with estimated stats when the data comes from the armory;
-  the Blizzard API gives exact stats.
+- Random-suffix items ("of the Gorilla") get exact stats from the Blizzard API; without it (armory) they are
+  estimated.
 - Around 40% of WoW Forever items are hidden in the game data until someone discovers them, so the item list
   grows with the weekly update.
 - GitHub pauses scheduled workflows after 60 days without repository activity. The weekly item commit keeps
