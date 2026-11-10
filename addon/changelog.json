@@ -1,0 +1,28 @@
+[
+  {
+    "version": "1.1.1",
+    "date": "2026-11-10",
+    "changes": [
+      "Neues Level-Modell wie auf der Seite: Die Gewichte messen, wie viel schneller du einen Mob ein Level unter dir tötest, kalibriert mit Kodas Kampflog.",
+      "Ausweichen, Parieren und das Talent Improved Stormstrike zählen jetzt mit. Bitte den Import-Text einmal neu kopieren und mit /fs import einfügen.",
+      "Im Gear-Tab zeigt der Tooltip über der Modell-Zeile, in wie vielen Sekunden du einen Mob tötest."
+    ]
+  },
+  {
+    "version": "1.1.0",
+    "date": "2026-11-10",
+    "changes": [
+      "Belohnungen von Quests, die du schon abgegeben hast, verschwinden jetzt zuverlässig, auch bei den neuen Forever-Dungeonquests (z. B. Furs of the Earthen Ring nach Earthen Echo).",
+      "Gear-Tab: Schalter für Quest, Dungeon, Vendor und Crafted sowie „Hide finished quests“ direkt oben, ohne Umweg über die Einstellungen.",
+      "Quests-Tab nach Gebieten gruppiert, in Level-Reihenfolge, mit Umschalter zwischen „Partner hat, du nicht“ und „Du hast, Partner nicht“.",
+      "Fehlt einer Quest die ID in den Daten, merkt sich das Addon sie beim Questgeber."
+    ]
+  },
+  {
+    "version": "1.0.0",
+    "date": "2026-11-10",
+    "changes": [
+      "Erste Version: Gear-Planer, Dungeon-Guide, Upgrade-Zeile im Tooltip, beste Questbelohnung, Quest-Abgleich, Partner-Sync und Loot-Ansage. Jede Funktion lässt sich einzeln abschalten."
+    ]
+  }
+]

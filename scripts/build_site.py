@@ -19,8 +19,17 @@ def main():
 
     mech_path = ROOT / "data" / "mechanics.json"
     mech = json.loads(mech_path.read_text(encoding="utf-8")) if mech_path.exists() else None
+    # the in-game addon: version (as build_addon.py names it) and what changed, for the Addon tab
+    addon_info = None
+    if (ROOT / "addon" / "VERSION").exists():
+        items_date = json.loads(items_js[items_js.index("{"):items_js.rindex("}") + 1]).get("generated") or ""
+        base = (ROOT / "addon" / "VERSION").read_text(encoding="utf-8").strip()
+        log_path = ROOT / "addon" / "changelog.json"
+        addon_info = {"version": base, "full": base + "-" + items_date.replace("-", ""), "items": items_date,
+                      "changelog": json.loads(log_path.read_text(encoding="utf-8")) if log_path.exists() else []}
     data_js = (items_js + "\nwindow.GEAR_STATE = " + json.dumps(gear, separators=(",", ":")) + ";\n"
-               + "window.MECH = " + json.dumps(mech, separators=(",", ":")) + ";\n")
+               + "window.MECH = " + json.dumps(mech, separators=(",", ":")) + ";\n"
+               + "window.ADDON_INFO = " + json.dumps(addon_info, ensure_ascii=False, separators=(",", ":")) + ";\n")
     safe = lambda s: s.replace("</script", "<\\/script")  # noqa: E731
     for marker in ("/*__GEAR_DATA__*/", "/*__APP_JS__*/", "<!--BODY-->", "<!--LOCAL_ONLY-->"):
         assert marker in template, f"template is missing {marker}"

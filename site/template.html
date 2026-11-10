@@ -295,6 +295,17 @@
   .a-suite h2 { margin: 0; }
   .a-suite code { padding: 1px 5px; border-radius: 4px; background: var(--panel-2); color: var(--text); font-size: 12.5px; word-break: break-all; }
   .a-suite .a-hint { grid-column: auto; }
+  .a-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; }
+  .a-ver { color: var(--muted); font-size: 13px; }
+  .a-ver b { color: var(--text); }
+  .a-new { padding: 10px 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
+  .a-new h3 { margin: 0 0 6px; }
+  .a-new ul { margin: 0; padding-left: 18px; display: grid; gap: 4px; }
+  .a-new li { color: var(--stats); font-size: 13.5px; }
+  .a-new details { margin-top: 8px; }
+  .a-new summary { color: var(--muted); font-size: 12.5px; cursor: pointer; }
+  .a-new .old { margin-top: 8px; }
+  .a-new .old h4 { margin: 8px 0 4px; color: var(--muted); font-size: 12px; font-weight: 600; }
   .istate { flex: none; padding: 1px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; white-space: nowrap; }
   .istate.done { background: color-mix(in srgb, var(--good) 22%, var(--panel-2)); color: var(--good); }
   .istate.no { background: var(--panel-2); color: var(--muted); }
@@ -524,7 +535,7 @@
 <section id="view-addons" hidden lang="de">
   <div class="addons gutter">
     <div class="a-suite">
-      <h2>Forever Suite – der Planer im Spiel</h2>
+      <div class="a-head"><h2>Forever Suite – der Planer im Spiel</h2><span class="a-ver" id="addonVer"></span></div>
       <p>Das Addon bringt alle Items und die Rechnung dieser Seite mit und rechnet im Spiel mit eurem echten Level und Gear: beste Upgrades pro Slot, Upgrade-Zeile in jedem Tooltip, beste Questbelohnung, Dungeon-Spickzettel, Loot-Ansage und Quest-Abgleich. In der Gruppe tauschen eure beiden Addons Gear und Quests aus. Jede Funktion lässt sich einzeln ein- und ausschalten.</p>
       <ol class="steps">
         <li><b>Herunterladen</b> und entpacken nach <code>World of Warcraft\_forever_\Interface\AddOns</code>. Darin muss direkt der Ordner <code>ForeverSuite</code> liegen.</li>
@@ -535,7 +546,8 @@
         <a class="a-btn primary" id="addonZip" href="#">Addon herunterladen (.zip)</a>
         <button type="button" class="a-btn" id="addonCopy">Text fürs Addon kopieren</button>
       </div>
-      <p class="a-hint" id="addonHint">Der Text enthält Talente, Charakterwerte, Gewichte und Filter von beiden Charakteren. Level und Gear liest das Addon selbst. Das Zip wird jeden Montag mit den neuen Item-Daten neu gebaut.</p>
+      <p class="a-hint" id="addonHint">Der Text enthält Talente, Charakterwerte, Gewichte und Filter von beiden Charakteren. Level und Gear liest das Addon selbst. Das Zip wird jeden Montag mit den neuen Item-Daten neu gebaut und bei jeder Addon-Änderung.</p>
+      <div class="a-new" id="addonNew" hidden></div>
     </div>
 
     <div class="a-intro">

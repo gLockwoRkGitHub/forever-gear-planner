@@ -1157,6 +1157,49 @@
   }
   function addonHint(msg) { $("addonHint").textContent = msg; }
   $("addonZip").href = ADDON_ZIP;
+  // version and what changed (addon/VERSION, addon/changelog.json), then the zip actually published on GitHub
+  const ADDON = window.ADDON_INFO || null;
+  const deDate = (iso) => { const d = new Date(iso); return isNaN(d) ? iso : d.toLocaleDateString("de-DE", { day: "numeric", month: "short", year: "numeric" }); };
+  function renderAddonInfo(published) {
+    const ver = $("addonVer"); ver.textContent = "";
+    if (!ADDON) return;
+    ver.appendChild(document.createTextNode("Version "));
+    ver.appendChild(el("b", "", ADDON.version));
+    ver.appendChild(document.createTextNode(" · Item-Daten vom " + deDate(ADDON.items)));
+    if (published && published.version && published.version.replace(/-\d{8}$/, "") !== ADDON.version) {
+      ver.appendChild(document.createTextNode(" · zum Download gerade noch " + published.version.replace(/-\d{8}$/, "") + ", die neue wird gebaut"));
+    } else if (published && published.at) {
+      ver.appendChild(document.createTextNode(" · Zip gebaut am " + new Date(published.at).toLocaleString("de-DE", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })));
+    }
+    $("addonZip").textContent = "Addon herunterladen (.zip, " + (published && published.version ? published.version.replace(/-\d{8}$/, "") : ADDON.version) + ")";
+    const box = $("addonNew"); box.innerHTML = "";
+    const log = ADDON.changelog || [];
+    if (!log.length) { box.hidden = true; return; }
+    box.hidden = false;
+    const latest = log[0];
+    box.appendChild(el("h3", "", "Neu in " + latest.version + " · " + deDate(latest.date)));
+    const ul = el("ul"); latest.changes.forEach((c) => ul.appendChild(el("li", "", c))); box.appendChild(ul);
+    if (log.length > 1) {
+      const det = el("details"); det.appendChild(el("summary", "", "Frühere Versionen"));
+      const old = el("div", "old");
+      log.slice(1).forEach((v) => {
+        old.appendChild(el("h4", "", v.version + " · " + deDate(v.date)));
+        const l = el("ul"); v.changes.forEach((c) => l.appendChild(el("li", "", c))); old.appendChild(l);
+      });
+      det.appendChild(old); box.appendChild(det);
+    }
+  }
+  renderAddonInfo(null);
+  if (window.fetch) {
+    fetch("https://api.github.com/repos/gLockwoRkGitHub/forever-gear-planner/releases/tags/addon")
+      .then((r) => r.ok ? r.json() : null)
+      .then((rel) => {
+        if (!rel) return;
+        const asset = (rel.assets || []).find((a) => a.name === "ForeverSuite.zip");
+        renderAddonInfo({ version: (rel.name || "").replace(/^Forever Suite\s*/, ""), at: asset ? asset.updated_at : rel.published_at });
+      })
+      .catch(() => { /* offline or rate-limited: the version from the page build stays */ });
+  }
   $("addonCopy").addEventListener("click", async () => {
     const text = addonText();
     try { await navigator.clipboard.writeText(text); addonHint("Kopiert. Im Spiel: /fs import, mit Strg+V einfügen, Import klicken."); }

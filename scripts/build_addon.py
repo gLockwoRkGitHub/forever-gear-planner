@@ -108,6 +108,9 @@ def main():
     meta_path = ROOT / "data" / "items-meta.json"
     meta = json.loads(meta_path.read_text(encoding="utf-8")) if meta_path.exists() else {}
     base = (ROOT / "addon" / "VERSION").read_text(encoding="utf-8").strip()
+    changelog = json.loads((ROOT / "addon" / "changelog.json").read_text(encoding="utf-8"))
+    if not changelog or changelog[0]["version"] != base:
+        raise SystemExit(f"addon/changelog.json has no entry for version {base} at the top: add what changed for players")
     version = base + "-" + (data.get("generated") or "dev").replace("-", "")
 
     if OUT_DIR.exists():
@@ -124,6 +127,10 @@ def main():
             if f.is_file():
                 z.write(f, f.relative_to(OUT_DIR).as_posix())
     (ROOT / "build" / "addon-version.txt").write_text(version + "\n", encoding="utf-8")
+    notes = ["**Neu in " + base + "**", ""] + ["- " + c for c in changelog[0]["changes"]] + [
+        "", "Entpacken nach `World of Warcraft/_forever_/Interface/AddOns` (der Ordner ForeverSuite liegt direkt darin), "
+        "im Spiel `/fs`. Wird mit jedem Item-Daten-Update neu gebaut."]
+    (ROOT / "build" / "addon-notes.md").write_text("\n".join(notes) + "\n", encoding="utf-8")
     print(f"addon {version}: {len(data['items'])} items, {nquests} quests -> {ZIP} ({ZIP.stat().st_size / 1024:.0f} KB)")
 
 

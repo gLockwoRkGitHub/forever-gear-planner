@@ -54,11 +54,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           VERSION=$(cat build/addon-version.txt)
-          NOTES="Forever Suite ${VERSION} for WoW Forever. Unzip into World of Warcraft/_forever_/Interface/AddOns (the folder ForeverSuite goes directly in there), then type /fs in the game. Rebuilt automatically with every item data update."
           if gh release view addon >/dev/null 2>&1; then
             gh release upload addon build/ForeverSuite.zip --clobber
-            gh release edit addon --title "Forever Suite ${VERSION}" --notes "${NOTES}"
+            gh release edit addon --title "Forever Suite ${VERSION}" --notes-file build/addon-notes.md
           else
-            gh release create addon build/ForeverSuite.zip --title "Forever Suite ${VERSION}" --notes "${NOTES}" --target main
+            gh release create addon build/ForeverSuite.zip --title "Forever Suite ${VERSION}" --notes-file build/addon-notes.md --target main
           fi
           echo "Published Forever Suite ${VERSION}" >> "$GITHUB_STEP_SUMMARY"

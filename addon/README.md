@@ -49,6 +49,10 @@ node addon/tests/parity.js         # runs the website's ranking for test scenari
 lua5.1 addon/tests/run.lua         # loads the addon in a mocked client: same results as the website, every module runs
 ```
 
+**Releasing a change players notice:** raise `addon/VERSION` and add an entry at the top of
+`addon/changelog.json` (German, written for players). The build refuses a version without an entry. The
+planner page (tab *Addon*) shows the version and these notes, the GitHub release uses them as its notes.
+
 The workflow `addon.yml` runs these steps and publishes the zip. `Model.lua` is a port of `site/model.js`
 and `Engine.lua` of the ranking in `site/app.js`; the parity test fails when they drift apart.
 The interface version in `ForeverSuite.toc` is 16001 (client 1.60.1); raise it when Forever patches.
