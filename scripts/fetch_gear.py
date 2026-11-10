@@ -145,6 +145,7 @@ def fetch_armory(region, server, name):
 
 
 # ------------------------------------------------------------------ Blizzard API
+VERBOSE = bool(os.environ.get("GEAR_VERBOSE"))
 def blizzard_token(region, cid, secret):
     auth = base64.b64encode(f"{cid}:{secret}".encode()).decode()
     d = get_json("https://oauth.battle.net/token", headers={"Authorization": f"Basic {auth}",
@@ -153,76 +154,43 @@ def blizzard_token(region, cid, secret):
 
 
 def blizzard_try(region, token, ns, realm, name_slug, what=""):
-    url = (f"https://{region}.api.blizzard.com/profile/wow/character/{realm}/{name_slug}{what}"
+    """WoW Forever has no realms: /profile/wow/character/{name}-{surname}. realm is only used as a fallback."""
+    path = f"{realm}/{name_slug}" if realm else name_slug
+    url = (f"https://{region}.api.blizzard.com/profile/wow/character/{path}{what}"
            f"?namespace={ns}&locale=en_US")
     return get_json(url, headers={"Authorization": f"Bearer {token}"})
 
 
-NS_SUFFIXES = ["forever", "classic-forever", "forever1x", "classic1x", "classic"]
-_REALMS = None
-
-
-def blizzard_realms(region, token):
-    """Realm slugs per profile namespace, read from the realm index of each dynamic namespace (once per run)."""
-    global _REALMS
-    if _REALMS is not None:
-        return _REALMS
-    _REALMS = {}
-    for suffix in NS_SUFFIXES:
-        ns = f"dynamic-{suffix}-{region}"
-        url = f"https://{region}.api.blizzard.com/data/wow/realm/index?namespace={ns}&locale=en_US"
-        try:
-            d = get_json(url, headers={"Authorization": f"Bearer {token}"})
-        except urllib.error.HTTPError as e:
-            log(f"Blizzard API: realm index {ns}: {e.code}")
-            continue
-        realms = [r for r in d.get("realms", []) if r.get("slug")]
-        log(f"Blizzard API: realm index {ns}: " + ", ".join(f"{r.get('name')} ({r['slug']})" for r in realms))
-        _REALMS[f"profile-{suffix}-{region}"] = [r["slug"] for r in realms]
-    return _REALMS
-
-
 def blizzard_locate(region, token, server, name, remembered):
-    """Find namespace / realm / name spelling that works for WoW Forever; remembered between runs."""
+    """Find the URL form that works for this character; remembered between runs."""
     if remembered:
         try:
-            blizzard_try(region, token, remembered["ns"], remembered["realm"], remembered["slug"])
+            blizzard_try(region, token, remembered["ns"], remembered.get("realm"), remembered["slug"])
             return remembered
         except urllib.error.HTTPError:
             pass
-    index = blizzard_realms(region, token)
-    guesses = [server, "forever", f"forever-{server}"]
-    candidates = []  # (namespace, [realm slugs]); namespaces with a realm index first
-    for ns, slugs in index.items():
-        first = [s for s in slugs if server in s]
-        candidates.append((ns, first + [s for s in slugs if s not in first] + [g for g in guesses if g not in slugs]))
-    for suffix in NS_SUFFIXES[:3]:
-        ns = f"profile-{suffix}-{region}"
-        if ns not in index:
-            candidates.append((ns, guesses))
-    low = name.lower()
-    names = [urllib.parse.quote(low), low.replace(" ", "-"), low.replace(" ", "")]
+    ns = f"profile-forever-{region}"
+    low = name.lower().strip()
+    names = list(dict.fromkeys([low.replace(" ", "-"), urllib.parse.quote(low), low.replace(" ", "")]))
     tried = []
-    for ns, realms in candidates:
-        for realm in realms:
-            codes = []
-            for slug in names:
-                try:
-                    blizzard_try(region, token, ns, realm, slug)
-                    log(f"Blizzard API: found {name} at {ns}/{realm}/{slug}")
-                    return {"ns": ns, "realm": realm, "slug": slug}
-                except urllib.error.HTTPError as e:
-                    codes.append(str(e.code))
-            tried.append(f"{ns}/{realm}: {'/'.join(codes)}")
-            if "403" in codes and ns not in index:
-                break  # namespace not available for this client
-    raise RuntimeError("Blizzard API: character not found. Tried " + "; ".join(tried))
+    for realm in (None, server):
+        codes = []
+        for slug in names:
+            try:
+                blizzard_try(region, token, ns, realm, slug)
+                log(f"Blizzard API: found {name} as {ns}/{realm + '/' if realm else ''}{slug}")
+                return {"ns": ns, "realm": realm, "slug": slug}
+            except urllib.error.HTTPError as e:
+                codes.append(f"{slug} {e.code}")
+        tried.append(f"{realm or '(no realm)'}: " + ", ".join(codes))
+    raise RuntimeError("Blizzard API: character not found (it shows up from level 10, after logging out). Tried "
+                       + "; ".join(tried))
 
 
 def fetch_blizzard(region, server, name, token, remembered):
     loc = blizzard_locate(region, token, server, name, remembered)
-    prof = blizzard_try(region, token, loc["ns"], loc["realm"], loc["slug"])
-    eq = blizzard_try(region, token, loc["ns"], loc["realm"], loc["slug"], "/equipment")
+    prof = blizzard_try(region, token, loc["ns"], loc.get("realm"), loc["slug"])
+    eq = blizzard_try(region, token, loc["ns"], loc.get("realm"), loc["slug"], "/equipment")
     items = []
     for i in eq.get("equipped_items", []):
         slot = SLOT_MAP.get(i.get("slot", {}).get("type"))
@@ -251,11 +219,22 @@ def fetch_blizzard(region, server, name, token, remembered):
         if ench:
             entry["ench"] = "; ".join(ench)
         items.append(entry)
-    return {"name": prof.get("name", name), "level": prof.get("level"),
+    full = prof.get("name") or name
+    if prof.get("surname") and prof["surname"].lower() not in full.lower():
+        full = f"{full} {prof['surname']}"
+    return {"name": full, "level": prof.get("level"),
             "lastLogin": prof.get("last_login_timestamp"), "source": "blizzard", "items": items}, loc
 
 
 # ------------------------------------------------------------------ main
+def log_items(label, result):
+    log(f"  {label}:")
+    for e in result.get("items", []):
+        log(f"    {e['slot']:<9} {e.get('n')} (ilvl {e.get('il')}) {e.get('st')}"
+            + (f" dps {e.get('dps')} speed {e.get('speed')}" if e.get("dps") else "")
+            + (f" [{e['ench']}]" if e.get("ench") else "") + (" (estimated)" if e.get("est") else ""))
+
+
 def main():
     cfg = json.loads((ROOT / "characters.json").read_text(encoding="utf-8"))
     region = cfg["region"]
@@ -299,6 +278,13 @@ def main():
         out["chars"][key] = result
         log(f"{name}: level {result.get('level')}, {len(result.get('items', []))} items via {result.get('source')}"
             + (" (stale)" if result.get("stale") else ""))
+        if VERBOSE and not result.get("stale"):
+            log_items(result.get("source"), result)
+            if result.get("source") == "blizzard":
+                try:
+                    log_items("armory, for comparison", fetch_armory(region, server, name))
+                except Exception as e:  # noqa: BLE001
+                    log(f"  armory for comparison failed ({e})")
 
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(json.dumps(out, separators=(",", ":")), encoding="utf-8")

@@ -6,6 +6,11 @@ on:
   schedule:
     - cron: "17 * * * *"
   workflow_dispatch:
+    inputs:
+      verbose:
+        description: "Log every fetched item (for checking the data)"
+        type: boolean
+        default: false
   push:
     branches: [main]
 
@@ -44,6 +49,7 @@ jobs:
         env:
           BLIZZARD_CLIENT_ID: ${{ secrets.BLIZZARD_CLIENT_ID }}
           BLIZZARD_CLIENT_SECRET: ${{ secrets.BLIZZARD_CLIENT_SECRET }}
+          GEAR_VERBOSE: ${{ inputs.verbose && '1' || '' }}
         run: python scripts/fetch_gear.py
 
       - name: Build page
