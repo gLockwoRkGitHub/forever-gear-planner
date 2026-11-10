@@ -36,6 +36,7 @@ local function boot(sc)
   g.level = sc.level
   g.stats = { sc.sheet.str, sc.sheet.agi, 50, sc.sheet.int, 40 }
   g.ap, g.crit, g.spellCrit, g.sp = sc.sheet.ap, sc.sheet.crit, sc.sheet.spellCrit, sc.sheet.sp
+  g.dodge, g.parry = sc.sheet.dodge, sc.sheet.parry
   g.professions = sc.key == "shaman" and { 333, 393 } or { 393, 182 }
   for inv, id in pairs(sc.inventory) do
     local suffix = sc.suffix[tostring(id)]

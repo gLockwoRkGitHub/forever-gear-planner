@@ -116,6 +116,8 @@ function M.install(FS_items_lookup)
   _G.GetCritChance = function() return g.crit end
   _G.GetSpellCritChance = function() return g.spellCrit end
   _G.GetSpellBonusDamage = function() return g.sp end
+  _G.GetDodgeChance = function() return g.dodge end
+  _G.GetParryChance = function() return g.parry end
   _G.GetShapeshiftFormID = function() return g.form end
   _G.GetInventoryItemLink = function(_, slot) return g.inventory[slot] end
   _G.InCombatLockdown = function() return false end

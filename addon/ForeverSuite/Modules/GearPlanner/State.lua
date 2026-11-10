@@ -67,6 +67,8 @@ local function liveSheet()
   if GetCritChance then local ok, v = pcall(GetCritChance); sh.crit = ok and U.num(v) or nil end
   if GetSpellCritChance then local ok, v = pcall(GetSpellCritChance, 4); sh.spellCrit = ok and U.num(v) or nil end
   if GetSpellBonusDamage then local ok, v = pcall(GetSpellBonusDamage, 4); sh.sp = ok and U.num(v) or nil end
+  if GetDodgeChance then local ok, v = pcall(GetDodgeChance); sh.dodge = ok and U.num(v) or nil end
+  if GetParryChance then local ok, v = pcall(GetParryChance); sh.parry = ok and U.num(v) or nil end
   if not (sh.str and sh.agi and sh.ap and sh.crit) then return nil end
   return sh
 end

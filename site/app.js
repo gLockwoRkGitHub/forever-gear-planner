@@ -1125,6 +1125,7 @@
     const hit = t.reduce((s, x) => { const m = /chance to hit by (\d+(?:\.\d+)?)%/i.exec(x.d || ""); return s + (m ? +m[1] : 0); }, 0);
     return {
       flurry: num("Flurry", /by (\d+(?:\.\d+)?)%/), elemW: num("Elemental Weapons", /Windfury Weapon effect by (\d+)%/),
+      impSS: num("Improved Stormstrike", /(\d+)% chance to reset/),
       storm: has("Stormstrike") ? 1 : 0, thunder: num("Thundering Strikes", /by (\d+)%/), md: num("Mental Dexterity", /equal to (\d+)%/),
       ak: num("Ancestral Knowledge", /Intellect by (\d+)%/), hit, bloodFrenzy: num("Blood Frenzy", /Combo Points have a (\d+)% chance/),
       shiftingPower: has("Shifting Power") ? 1 : 0, predStrikes: num("Predatory Strikes", /by (\d+)% of your level/),
@@ -1147,7 +1148,7 @@
       if (g && g.talents) f.push("t=" + map(talentNumbers(g.talents)));
       if (g && g.sheet) {
         const sh = {};
-        ["str", "agi", "int", "ap", "crit", "spellCrit", "sp"].forEach((k) => { if (typeof g.sheet[k] === "number") sh[k] = g.sheet[k]; });
+        ["str", "agi", "int", "ap", "crit", "spellCrit", "sp", "dodge", "parry"].forEach((k) => { if (typeof g.sheet[k] === "number") sh[k] = g.sheet[k]; });
         f.push("sh=" + map(sh));
       }
       parts.push(f.join(";").replace(/~/g, "-"));

@@ -46,6 +46,7 @@ const SHAMAN_TALENTS = [
   { n: "Flurry", d: "Increases your attack speed by 25% for your next 3 swings after dealing a critical strike." },
   { n: "Elemental Weapons", d: "Increases the melee attack power bonus of your Rockbiter Weapon by 20%, your Windfury Weapon effect by 40% and increases the damage caused by your Flametongue Weapon and Frostbrand Weapon by 15%." },
   { n: "Stormstrike", d: "Gives you an extra attack." },
+  { n: "Improved Stormstrike", d: "Gives you a 50% chance to reset the cooldown of Stormstrike when you dodge or parry." },
   { n: "Thundering Strikes", d: "Improves your chance to get a critical strike with your weapon attacks by 3%." },
   { n: "Mental Dexterity", d: "Increases your Attack Power by an amount equal to 66% of your Intellect." },
   { n: "Ancestral Knowledge", d: "Increases your Intellect by 5%." },
@@ -59,15 +60,15 @@ const DRUID_TALENTS = [
 ];
 const scenarios = [
   { key: "shaman", level: 34, preset: "Level model", profs: ["Enchanting"], talents: SHAMAN_TALENTS,
-    sheet: { str: 110, agi: 55, int: 75, ap: 290, crit: 6.5, spellCrit: 3.2, sp: 0 },
+    sheet: { str: 110, agi: 55, int: 75, ap: 290, crit: 6.5, spellCrit: 3.2, sp: 0, dodge: 6.1, parry: 5.0 },
     gear: { "Two-Hand": [1976], Head: [273645], Chest: [8211], Legs: [6910], Feet: [7027], Hands: [4247], Finger: [2039, 1491],
       Trinket: [273840], Back: [6314], Waist: [4829], Wrist: [3230], Shoulder: [3748] },
     suffix: { 8211: { str: 6, sta: 6 } } },
   { key: "shaman", level: 41, preset: "Enhancement (estimate)", profs: ["Enchanting"], talents: SHAMAN_TALENTS,
-    sheet: { str: 110, agi: 55, int: 75, ap: 290, crit: 6.5, spellCrit: 3.2, sp: 0 },
+    sheet: { str: 110, agi: 55, int: 75, ap: 290, crit: 6.5, spellCrit: 3.2, sp: 0, dodge: 6.1, parry: 5.0 },
     gear: { "Two-Hand": [1976], Head: [273645], Legs: [6910], Finger: [2039] }, suffix: {} },
   { key: "druid", level: 30, preset: "Level model (Cat)", profs: [], talents: DRUID_TALENTS,
-    sheet: { str: 60, agi: 70, int: 80, ap: 140, crit: 7.2, spellCrit: 4.0, sp: 0 },
+    sheet: { str: 60, agi: 70, int: 80, ap: 140, crit: 7.2, spellCrit: 4.0, sp: 0, dodge: 8.0, parry: 0 },
     gear: { "Two-Hand": [1155], Head: [273645], Chest: [6324], Hands: [4247], Finger: [2039, 1491] }, suffix: {} },
 ];
 

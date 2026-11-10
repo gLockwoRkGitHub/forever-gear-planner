@@ -57,12 +57,12 @@ local function weightTooltip(owner, st, w)
   local m = w.__model
   if m then
     GameTooltip:AddLine(" ")
-    GameTooltip:AddLine(("Damage per second: %.1f"):format(m.dps), 1, 0.82, 0)
+    GameTooltip:AddLine(("Kills a level-%d mob (%d health) in %.1f sec"):format(m.mobLevel, m.fight.H, m.fight.T), 1, 0.82, 0)
     for _, part in ipairs(m.detail.parts) do
       if part[2] > 0.05 then GameTooltip:AddDoubleLine(part[1], ("%.1f"):format(part[2]), 0.8, 0.8, 0.8, 1, 1, 1) end
     end
     GameTooltip:AddLine(" ")
-    GameTooltip:AddLine("Counted in Strength points. Two-handers are valued by their damage and speed.", 0.6, 0.6, 0.6, true)
+    GameTooltip:AddLine("Weights = how much faster you kill, in Strength points. Two-handers are valued by their damage and speed.", 0.6, 0.6, 0.6, true)
     local src = { game = "the game", saved = "saved (last caster form)", website = "the website" }
     GameTooltip:AddLine("Character sheet: " .. (src[st.sheetSrc] or "none") .. ". Talents: " .. (st.talSrc and src[st.talSrc] or "none") .. ".", 0.6, 0.6, 0.6, true)
   else
