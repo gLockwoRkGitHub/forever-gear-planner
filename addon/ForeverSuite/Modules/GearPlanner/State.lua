@@ -240,7 +240,7 @@ end
 function S:SetPartner(name, data)
   local prof = data and G.PROFILES[data.key]
   if not prof then self.partners[name] = nil; return end
-  local st = { key = data.key, prof = prof, name = name, isSelf = false, liveLevel = data.level, level = data.level,
+  local st = { key = data.key, prof = prof, name = name, short = U.FirstName(name), isSelf = false, liveLevel = data.level, level = data.level,
     sheet = data.sheet, tal = data.tal or {}, talSrc = data.talSrc, at = data.at, hasGear = true, equipped = {}, items = {} }
   local s = data.settings or {}
   st.settings = {

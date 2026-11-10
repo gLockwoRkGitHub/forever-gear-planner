@@ -1,5 +1,14 @@
 [
   {
+    "version": "1.2.1",
+    "date": "2026-11-10",
+    "changes": [
+      "Tooltip und Listen zeigen dich nur noch einmal als „You“. Vorher kamen deine eigenen Gruppen-Nachrichten unter deinem vollen Forever-Namen zurück und wurden als zweiter Partner gezählt; dieser Eintrag wird beim Einloggen gelöscht.",
+      "Partner erscheinen mit Vornamen, also „Tato“ statt „Tato Mcpaw“.",
+      "Bitte beide auf 1.2.1 aktualisieren: Ältere Versionen verstehen die neuen Sync-Nachrichten nicht vollständig."
+    ]
+  },
+  {
     "version": "1.2.0",
     "date": "2026-11-10",
     "changes": [

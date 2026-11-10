@@ -34,6 +34,7 @@ local DB_DEFAULTS = {
   questSync = {},        -- name -> { at, ids = { [questID] = true } }
   instanceMap = {},      -- instanceID -> dungeon name (dungeons the game did not name in English)
   questIds = {},         -- itemID -> questID, learned at quest givers for rewards the data knows only by quest name
+  selfNames = {},        -- names your own group messages came back with (never a partner)
   minimap = { angle = 200, hide = false },
   window = {},
   debug = false,
@@ -166,7 +167,22 @@ FS:On("ADDON_LOADED", core, function(_, _, name)
   FS:Off("ADDON_LOADED", core)
 end)
 
+-- your own names never count as partner (older versions stored your echoed messages as one)
+function FS:ForgetSelf(name)
+  if name then FS.db.selfNames[name] = true end
+  local gone = false
+  for _, store in ipairs({ FS.db.partners, FS.db.questSync }) do
+    for n in pairs(store) do if FS.U.IsMe(n) then store[n] = nil; gone = true end end
+  end
+  if FS.Gear and FS.Gear.State then
+    for n in pairs(FS.Gear.State.partners) do if FS.U.IsMe(n) then FS.Gear.State.partners[n] = nil; gone = true end end
+  end
+  if gone then FS:Fire("PARTNER_CHANGED") end
+end
+FS:Listen("SELF_NAME", core, function(_, _, name) FS:ForgetSelf(name) end)
+
 FS:On("PLAYER_LOGIN", core, function()
+  safecall(FS.ForgetSelf, FS)
   if FS.Gear then safecall(FS.Gear.Init, FS.Gear) end
   for _, m in ipairs(FS.moduleList) do
     if m.OnInitialize then safecall(m.OnInitialize, m) end

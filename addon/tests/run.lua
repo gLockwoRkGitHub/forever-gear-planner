@@ -160,27 +160,44 @@ check(sentState, "own state sent to the group")
 local P = FS.modules.partner
 local own = P.Encode(S.self)
 local druid = own:gsub("k=shaman", "k=druid"):gsub("p=Level model", "p=Level model (Cat)")
-M.sent = {}
-FS.Comm:Send("S", druid)
-M.runTimers(10)
-M.deliver("Tato", "S")
+-- our own messages come back from the group under our full Forever name: never a partner
+local echo = M.deliver("Koda Ashmane")
 M.runTimers(5)
-check(S.partners.Tato and S.partners.Tato.key == "druid", "partner Tato received as druid")
+check(echo > 0 and not S.partners["Koda Ashmane"] and FS.db.partners["Koda Ashmane"] == nil, "own echoed messages are not a partner")
+check(FS.db.selfNames["Koda Ashmane"], "own full name learned from the echo")
+-- a partner's addon has its own token: send as if from Tato Mcpaw's client
+local function asPartner(kind, payload)
+  local mine = FS.Comm.token
+  FS.Comm.token = "beef0001"
+  M.sent = {}
+  FS.Comm:Send(kind, payload)
+  M.runTimers(10)
+  FS.Comm.token = mine
+  M.deliver("Tato Mcpaw", kind)
+  M.runTimers(5)
+end
+asPartner("S", druid)
+local tato = S.partners["Tato Mcpaw"]
+check(tato and tato.key == "druid", "partner Tato received as druid")
 GameTooltip:SetItemByID(10400)
 local line = find(GameTooltip._lines or {}, "Forever Suite") or ""
-check(line:find("Tato"), "tooltip shows the partner too")
+check(line:find("Tato") and not line:find("Mcpaw"), "tooltip shows the partner by first name")
+local _, yous = line:gsub("You", "")
+check(yous == 1 and not line:find("Koda"), "tooltip shows you once, as You")
 say("tooltip with partner: " .. line)
+-- an older version stored your own echo as a partner: it is dropped
+FS.db.partners["Koda Ashmane"] = { payload = own, at = 1 }
+FS.db.questSync["Koda Ashmane"] = { at = 1, ids = {} }
+FS:ForgetSelf()
+check(FS.db.partners["Koda Ashmane"] == nil and FS.db.questSync["Koda Ashmane"] == nil, "stored self entries removed")
 
 -- quest sync
 M.game.quests = { [6481] = true, [1164] = true }
 local enc = FS.modules.questsync.Encode({ [6481] = true, [1445] = true, [31] = true })
 local dec = FS.modules.questsync.Decode(enc)
 check(dec[6481] and dec[1445] and dec[31], "quest list survives encoding")
-M.sent = {}
-FS.Comm:Send("Q", enc)
-M.runTimers(10)
-M.deliver("Tato", "Q")
-check(FS.db.questSync.Tato and FS.db.questSync.Tato.ids[1445], "partner quests stored")
+asPartner("Q", enc)
+check(FS.db.questSync["Tato Mcpaw"] and FS.db.questSync["Tato Mcpaw"].ids[1445], "partner quests stored")
 SlashCmdList.FOREVERSUITE("quests")
 
 -- quests tab grouped by zone (quest table built into the addon)

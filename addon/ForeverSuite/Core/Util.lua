@@ -153,6 +153,20 @@ function U.Me()
   return n
 end
 
+-- a character's first name for display ("Tato Mcpaw" -> "Tato"; WoW Forever names have a surname)
+function U.FirstName(name)
+  return name and (name:match("^(%S+)") or name) or name
+end
+
+-- is this sender name one of your own? (the game may name you "Koda" or "Koda Ashmane")
+function U.IsMe(name)
+  if not name then return false end
+  local me = UnitName("player")
+  if not me or U.secret(me) then return false end
+  if name == me or (FS.db and FS.db.selfNames and FS.db.selfNames[name]) then return true end
+  return name:sub(1, #me + 1) == me .. " " or me:sub(1, #name + 1) == name .. " "
+end
+
 function U.ShortName(name)
   if not name then return name end
   if Ambiguate then

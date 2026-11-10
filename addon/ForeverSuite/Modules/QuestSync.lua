@@ -201,12 +201,13 @@ local function build(panel)
     local nt, nm = 0, 0
     for id in pairs(rec.ids) do if not mine[id] then theirsOnly[id] = true; nt = nt + 1 end end
     for id in pairs(mine) do if not rec.ids[id] then mineOnly[id] = true; nm = nm + 1 end end
-    title:SetText("You and " .. name)
+    title:SetText("You and " .. U.FirstName(name))
     sub:SetText("Their list is from " .. date("%d %b %H:%M", rec.at) .. (#names > 1 and (" · also synced: " .. table.concat(names, ", ")) or "")
       .. ". Quests only count once turned in.")
     theirsBtn:Show(); mineBtn:Show()
-    theirsBtn.label:SetText(name .. " did, you not (" .. nt .. ")")
-    mineBtn.label:SetText("You did, " .. name .. " not (" .. nm .. ")")
+    local short = U.FirstName(name)
+    theirsBtn.label:SetText(short .. " did, you not (" .. nt .. ")")
+    mineBtn.label:SetText("You did, " .. short .. " not (" .. nm .. ")")
     theirsBtn:SetActive(view == "theirs")
     mineBtn:SetActive(view == "mine")
     local y = listQuests(view == "theirs" and theirsOnly or mineOnly, 0, view == "mine")

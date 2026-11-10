@@ -14,7 +14,7 @@ local Tip = FS:NewModule("tooltip", {
 local SKIP = { ShoppingTooltip1 = true, ShoppingTooltip2 = true, ForeverSuiteScanTip = true }
 
 local function part(st, v)
-  local name = "|cff" .. st.prof.color .. (st.isSelf and "You" or st.name) .. "|r "
+  local name = "|cff" .. st.prof.color .. (st.isSelf and "You" or st.short or st.name) .. "|r "
   if v.kind == "up" then return name .. U.colorDelta(v.delta) end
   if v.kind == "down" then return name .. U.colorDelta(v.delta) end
   if v.kind == "later" then return name .. "|cffffcc00lvl " .. v.from .. (v.delta and (" " .. U.delta(v.delta)) or "") .. "|r" end

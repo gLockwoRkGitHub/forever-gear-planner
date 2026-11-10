@@ -125,7 +125,7 @@ function P:OnState(_, name, payload)
   FS.db.partners[name] = { payload = payload, at = time() }
   self:Apply(name)
   if not known then
-    FS:Print(("Partner %s synced. Tooltips and the Dungeons tab now show their upgrades too."):format(name))
+    FS:Print(("Partner %s synced. Tooltips and the Dungeons tab now show their upgrades too."):format(U.FirstName(name)))
     FS:Debounce("partner-reply", 2, function() P:SendState(true) end)
   end
 end
@@ -172,10 +172,10 @@ local function hint(prefix, link)
   for _, st in ipairs(S:All()) do
     local v = G:Evaluate(st, it)
     if v and (v.kind == "up" or v.kind == "down") then
-      parts[#parts + 1] = "|cff" .. st.prof.color .. (st.isSelf and "You" or st.name) .. "|r " .. U.colorDelta(v.delta)
+      parts[#parts + 1] = "|cff" .. st.prof.color .. (st.isSelf and "You" or st.short or st.name) .. "|r " .. U.colorDelta(v.delta)
       if v.kind == "up" then
         any = true
-        if v.delta > bestGain then bestGain, bestName = v.delta, st.isSelf and "you" or st.name end
+        if v.delta > bestGain then bestGain, bestName = v.delta, st.isSelf and "you" or st.short or st.name end
       end
     end
   end

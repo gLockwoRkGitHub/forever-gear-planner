@@ -81,7 +81,7 @@ function QR:Evaluate(announce)
       local v = c.it and G:Evaluate(p, c.it)
       if v and v.kind == "up" and (not pb or v.delta > pb.v.delta) then pb = { c = c, v = v } end
     end
-    if pb then lines[#lines + 1] = "|cff" .. p.prof.color .. p.name .. "|r: " .. pb.c.link .. " " .. U.colorDelta(pb.v.delta) end
+    if pb then lines[#lines + 1] = "|cff" .. p.prof.color .. (p.short or p.name) .. "|r: " .. pb.c.link .. " " .. U.colorDelta(pb.v.delta) end
   end
   if #lines == 0 then
     if me then FS:Print("No reward is an upgrade. The gold coin marks the one that sells for the most.") end

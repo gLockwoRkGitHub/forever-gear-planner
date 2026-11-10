@@ -12,6 +12,9 @@ local INTERVAL = 0.35     -- seconds between messages
 local queue, sending = {}, false
 local buffers = {}        -- sender..id -> { n, parts = {}, got }
 local counter = 0
+-- a token for this login: group messages come back to the sender, and the sender name may not match
+-- UnitName("player") (WoW Forever names have a surname), so own messages are recognised by it
+Comm.token = ("%06x%04x"):format(math.random(0, 16777215), math.floor((GetTime() * 1000) % 65536))
 
 local function register()
   if C_ChatInfo and C_ChatInfo.RegisterAddonMessagePrefix then
@@ -62,7 +65,8 @@ function Comm:Send(kind, payload, channel, target)
   local n = math.max(1, math.ceil(#payload / PART))
   for i = 1, n do
     local part = payload:sub((i - 1) * PART + 1, i * PART)
-    queue[#queue + 1] = { msg = kind .. "\t" .. counter .. "\t" .. i .. "\t" .. n .. "\t" .. part, channel = channel, target = target }
+    queue[#queue + 1] = { msg = kind .. "\t" .. counter .. "\t" .. i .. "\t" .. n .. "\t" .. Comm.token .. "\t" .. part,
+      channel = channel, target = target }
   end
   if not sending then sending = true; pump() end
   return true
@@ -70,14 +74,20 @@ end
 
 function Comm:Busy() return #queue end
 
-local me
 local function onMessage(_, _, prefix, text, channel, sender)
   if prefix ~= Comm.PREFIX or type(text) ~= "string" or U.secret(text) then return end
-  me = me or U.Me()
   local who = U.ShortName(sender)
-  if not who or who == me then return end
-  local kind, id, i, n, part = text:match("^(%a+)\t(%d+)\t(%d+)\t(%d+)\t(.*)$")
+  if not who then return end
+  local kind, id, i, n, token, part = text:match("^(%a+)\t(%d+)\t(%d+)\t(%d+)\t(%x+)\t(.*)$")
+  if not kind then
+    kind, id, i, n, part = text:match("^(%a+)\t(%d+)\t(%d+)\t(%d+)\t(.*)$")   -- Forever Suite 1.2.0 and older
+  end
   if not kind then return end
+  if token == Comm.token then
+    if not (FS.db.selfNames and FS.db.selfNames[who]) then FS:Fire("SELF_NAME", who) end
+    return
+  end
+  if U.IsMe(who) then return end
   i, n = tonumber(i), tonumber(n)
   local key = who .. ":" .. id
   local b = buffers[key]

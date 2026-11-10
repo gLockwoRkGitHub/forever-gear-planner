@@ -85,7 +85,7 @@ local function rankDungeons(ctxs)
   return out
 end
 
-local function who(st) return "|cff" .. st.prof.color .. (st.isSelf and "You" or st.name) .. "|r" end
+local function who(st) return "|cff" .. st.prof.color .. (st.isSelf and "You" or st.short or st.name) .. "|r" end
 
 local function verdictText(st, v, slot)
   if v.kind == "no" then return who(st) .. " |cff777777can't use|r" end
