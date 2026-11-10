@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parent.parent
 
 def main():
     template = (ROOT / "site" / "template.html").read_text(encoding="utf-8")
-    app_js = (ROOT / "site" / "app.js").read_text(encoding="utf-8")
+    app_js = (ROOT / "site" / "model.js").read_text(encoding="utf-8") + "\n" + (ROOT / "site" / "app.js").read_text(encoding="utf-8")
     items_js = (ROOT / "data" / "items.js").read_text(encoding="utf-8")
     gear_path = ROOT / "build" / "gear.json"
     gear = json.loads(gear_path.read_text(encoding="utf-8")) if gear_path.exists() else None

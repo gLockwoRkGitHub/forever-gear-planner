@@ -33,6 +33,19 @@ Item data comes from the WoW Forever game tables on [wago.tools](https://wago.to
 data from [QuestieDB](https://github.com/Questie/QuestieDB), and item tooltips from
 [Wowhead](https://www.wowhead.com/forever).
 
+## Level model
+
+The default stat weights are computed per character and level (`site/model.js`): expected damage per second
+against a mob of that level, from the character's talents and character sheet (Blizzard API) and the ability
+ranks in the game data (`data/mechanics.json`, built by `scripts/extract_mechanics.py`). Each weight is the
+extra damage of one point of a stat, counted in Strength points; two-handers are valued by their damage and
+speed directly.
+
+- Shaman: auto attacks, Flurry, Windfury (from 30), Stormstrike and Earth Shock on cooldown.
+- Druid (Cat Form, from 20): auto attacks, Rake, Claw to 5 combo points, Rip, 10 energy per second; the cat's
+  auto attack is assumed to do the weapon's damage per second.
+- Not modelled: mana, downtime, buffs, special item effects.
+
 ## Setup
 
 1. **Secrets** – *Settings → Secrets and variables → Actions → New repository secret*

@@ -22,7 +22,8 @@
       relic: "Totem", profs: ["Enchanting"], level: 34,
       hide: ["feralAp", "def", "dodge"],
       presets: {
-        "Enhancement": {
+        "Level model": { model: true, base: "Enhancement (estimate)" },
+        "Enhancement (estimate)": {
           str: 1.0, agi: 0.4, int: 0.5, sta: 0.15, spi: 0.1, ap: 0.5, feralAp: 0, crit: 10, hit: 8, critR: 0.8, hitR: 0.8,
           exp: 0.8, haste: 0.5, armor: 0.01, def: 0, dodge: 0, sp: 0.2, natureSp: 0.15, dps: 8, slow: 1.5
         }
@@ -36,7 +37,8 @@
       relic: "Idol", profs: [], level: 34,
       hide: ["natureSp"],
       presets: {
-        "Cat (DPS)": {
+        "Level model (Cat)": { model: true, base: "Cat (estimate)" },
+        "Cat (estimate)": {
           str: 0.9, agi: 1.0, int: 0.05, sta: 0.2, spi: 0.05, ap: 0.45, feralAp: 0.45, crit: 12, hit: 12, critR: 1.0, hitR: 1.0,
           exp: 1.0, haste: 0.8, armor: 0.02, def: 0.1, dodge: 2, sp: 0, natureSp: 0, dps: 6, slow: 0
         },
@@ -97,6 +99,33 @@
   }
   function longLabel(key) { return (charName(key) ? charName(key) + " · " : "") + PROFILES[key].label; }
 
+  // --- level model ------------------------------------------------------------------------
+  const MODEL_KEYS = ["str", "agi", "int", "ap", "feralAp", "crit", "hit", "sp", "natureSp"];
+  const modelCache = new Map();
+  function modelFor(key, level) {
+    const id = key + "@" + level;
+    if (!modelCache.has(id)) {
+      const ctx = window.LevelModel ? window.LevelModel.context(key, gearChar(key), level) : null;
+      let res = ctx ? window.LevelModel.weights(ctx) : null;
+      if (res) {  // two-handers are valued by simulating them; cache per item
+        const wcache = new Map(), raw = res.weapon;
+        res = Object.assign({}, res, { weapon: (it) => { if (!wcache.has(it)) wcache.set(it, raw(it)); return wcache.get(it); }, ctx });
+      }
+      modelCache.set(id, res);
+    }
+    return modelCache.get(id);
+  }
+  function isModel(key, preset) { const p = PROFILES[key].presets[preset]; return !!(p && p.model); }
+  function presetWeights(key, preset, level) {
+    const p = PROFILES[key].presets[preset];
+    if (!p.model) return Object.assign({}, p);
+    const w = Object.assign({}, PROFILES[key].presets[p.base]);
+    const m = modelFor(key, level);
+    if (m) { MODEL_KEYS.forEach((k) => { w[k] = m.w[k]; }); w.dps = 0; w.slow = 0; w.__model = m; }
+    else w.__noModel = true;
+    return w;
+  }
+
   function readProfile(key) {
     const prof = PROFILES[key];
     const get = (k, d) => store.get(key + "_" + k, key === "shaman" ? store.get(k, d) : d);
@@ -109,11 +138,16 @@
       myProfs: get("myProfs", prof.profs.slice()),
       random: get("random", false),
       preset: preset,
-      weights: Object.assign({}, prof.presets[preset], get("weights", {}))
+      weights: null
     };
   }
-  function loadProfile() { Object.assign(state, readProfile(state.profile)); }
-  function profileState(key) { return key === state.profile ? state : readProfile(key); }
+  function withWeights(key, st) {
+    const get = (k, d) => store.get(key + "_" + k, key === "shaman" ? store.get(k, d) : d);
+    st.weights = Object.assign(presetWeights(key, st.preset, st.level), isModel(key, st.preset) ? {} : get("weights", {}));
+    return st;
+  }
+  function loadProfile() { Object.assign(state, withWeights(state.profile, readProfile(state.profile))); }
+  function profileState(key) { return key === state.profile ? state : withWeights(key, readProfile(key)); }
 
   const $ = (id) => document.getElementById(id);
   const WOWHEAD = "https://www.wowhead.com/forever/item=";
@@ -184,7 +218,9 @@
 
   function setLevel(v) {
     v = Math.max(1, Math.min(60, Math.round(+v || 1)));
-    state.level = v; $("level").value = v; $("levelRange").value = v; saveLevel(state.profile, v); updateLevelSource(); render();
+    state.level = v; $("level").value = v; $("levelRange").value = v; saveLevel(state.profile, v); updateLevelSource();
+    if (isModel(state.profile, state.preset)) { state.weights = presetWeights(state.profile, state.preset, v); buildWeights(); }
+    render();
     if (view === "dungeons") renderDungeons();
   }
   function updateLevelSource() {
@@ -209,9 +245,44 @@
 
   // --- stat weights -----------------------------------------------------------------------
   function saveWeights() {
+    pset("preset", state.preset);
+    if (isModel(state.profile, state.preset)) return;  // computed, nothing to keep
     const base = P().presets[state.preset];
     const diff = {}; Object.keys(state.weights).forEach((k) => { if (state.weights[k] !== base[k]) diff[k] = state.weights[k]; });
-    pset("weights", diff); pset("preset", state.preset);
+    pset("weights", diff);
+  }
+  function modelBox() {
+    const box = el("div", "mbox");
+    const w = state.weights, m = w.__model, who = charName(state.profile) || P().tag;
+    if (!m) {
+      box.appendChild(el("p", "", w.__noModel && state.profile === "druid" && state.level < 20
+        ? "The level model needs Cat Form (level 20). Below that it uses the estimate weights."
+        : "No talents or character sheet yet, so this uses the estimate weights. They arrive with the next hourly update."));
+      return box;
+    }
+    const head = el("p", "mhead");
+    head.appendChild(el("b", "", "Level model for " + who + " at level " + state.level));
+    head.appendChild(document.createTextNode(" · about " + Math.round(m.dps) + " damage per second against a mob of that level"));
+    box.appendChild(head);
+    const bar = el("div", "mbar");
+    const total = m.detail.total || 1;
+    Object.entries(m.detail.parts).filter(([, v]) => v > 0.05).forEach(([k, v], i) => {
+      const seg = el("span", "mseg s" + i); seg.style.flexGrow = String(v / total);
+      seg.title = k + ": " + Math.round(100 * v / total) + "%"; seg.appendChild(el("span", "", k + " " + Math.round(100 * v / total) + "%"));
+      bar.appendChild(seg);
+    });
+    box.appendChild(bar);
+    box.appendChild(el("p", "mlegend", Object.entries(m.detail.parts).filter(([, v]) => v > 0.05)
+      .map(([k, v]) => k + " " + Math.round(100 * v / total) + "%").join(" · ")));
+    const f = (x) => x >= 10 ? x.toFixed(1) : x.toFixed(2);
+    const facts = [["1 % Hit", w.hit], ["1 % Crit", w.crit], ["1 Agility", w.agi], ["1 Intellect", w.int], ["1 Attack Power", w.ap]]
+      .filter(([, v]) => v > 0.001).map(([k, v]) => k + " = " + f(v) + " Str");
+    box.appendChild(el("p", "", "Everything is counted in Strength points. " + facts.join(" · ") + ". Two-handers are valued by computing their damage and speed directly."));
+    const assume = state.profile === "shaman"
+      ? "Assumes: mob of your level fought from the front (5% miss, dodge and parry each), Stormstrike and Earth Shock on cooldown, Windfury from level 30, no buffs. Mana and downtime are not counted."
+      : "Assumes: mob of your level fought from the front, so Claw instead of Shred; Rake, Claw to 5 combo points, Rip; 10 energy per second; the cat's auto attack does the weapon's damage per second (Forever scales feral attacks with the weapon). No buffs.";
+    box.appendChild(el("p", "mnote", assume + " Talents and character sheet come from Blizzard; ability ranks from the game data."));
+    return box;
   }
   function buildWeights() {
     const wgrid = $("wgrid"); wgrid.innerHTML = "";
@@ -222,27 +293,35 @@
       names.forEach((n) => {
         const b = el("button", "preset", n); b.type = "button"; b.setAttribute("aria-pressed", String(n === state.preset));
         b.addEventListener("click", () => {
-          state.preset = n; state.weights = Object.assign({}, P().presets[n]); saveWeights(); buildWeights(); render();
+          state.preset = n; state.weights = presetWeights(state.profile, n, state.level); saveWeights(); buildWeights(); render();
         });
         presetBox.appendChild(b);
       });
     }
+    const model = isModel(state.profile, state.preset);
+    $("mboxWrap").innerHTML = "";
+    if (model) $("mboxWrap").appendChild(modelBox());
+    $("wReset").hidden = model;
     WEIGHT_GROUPS.forEach(([title, keys]) => {
-      const shown = keys.filter((k) => !P().hide.includes(k));
+      const shown = keys.filter((k) => !P().hide.includes(k) && !(model && state.weights.__model && (k === "dps" || k === "slow")));
       if (!shown.length) return;
       const fs = el("fieldset", "group"); fs.appendChild(el("legend", "lbl", title));
       shown.forEach((k) => {
         const d = el("div", "wrow");
         const l = el("label", "", WEIGHT_LABELS[k]); l.htmlFor = "w_" + k;
-        const i = el("input"); i.type = "number"; i.step = "0.05"; i.id = "w_" + k; i.value = state.weights[k];
+        const i = el("input"); i.type = "number"; i.step = "0.05"; i.id = "w_" + k;
+        const v = state.weights[k] || 0;
+        i.value = model ? (Math.abs(v) >= 10 ? v.toFixed(1) : +v.toFixed(2)) : v;
         i.setAttribute("inputmode", "decimal");
+        if (model && state.weights.__model && MODEL_KEYS.includes(k)) { i.readOnly = true; i.classList.add("computed"); i.title = "Computed by the level model"; }
+        else if (model) { i.disabled = true; i.title = "From the estimate preset; pick it to edit"; }
         i.addEventListener("change", () => { state.weights[k] = parseFloat(i.value) || 0; saveWeights(); render(); });
         d.appendChild(l); d.appendChild(i); fs.appendChild(d);
       });
       wgrid.appendChild(fs);
     });
   }
-  $("wReset").addEventListener("click", () => { state.weights = Object.assign({}, P().presets[state.preset]); saveWeights(); buildWeights(); render(); });
+  $("wReset").addEventListener("click", () => { state.weights = presetWeights(state.profile, state.preset, state.level); saveWeights(); buildWeights(); render(); });
 
   function updateSummaries() {
     const src = state.sources.length === SOURCES.length ? "all sources" : (state.sources.length ? state.sources.join(", ") : "no sources");
@@ -250,16 +329,17 @@
     $("filterSum").textContent = "Top " + state.topN + " · " + src + " · " + prof + (state.random ? " · random enchants" : "")
       + (state.onlyUp && charGear(state.profile) ? " · only upgrades" : "");
     const base = P().presets[state.preset];
-    const custom = Object.keys(base).some((k) => state.weights[k] !== base[k]);
-    const names = Object.keys(P().presets);
-    $("weightSum").textContent = (names.length > 1 ? state.preset : "default") + (custom ? " · custom" : "");
+    const model = isModel(state.profile, state.preset);
+    const custom = !model && Object.keys(base).some((k) => state.weights[k] !== base[k]);
+    $("weightSum").textContent = model ? (state.weights.__model ? "model · L" + state.level : "model (no data)") : state.preset + (custom ? " · custom" : "");
   }
 
   // --- scoring and eligibility ------------------------------------------------------------
   function score(it) { return scoreW(it, state.weights); }
   function scoreW(it, w) {
     let s = 0;
-    for (const k in it.st) { if (k !== "wpnDmg" && w[k] !== undefined) s += it.st[k] * w[k]; }
+    for (const k in it.st) { if (k !== "wpnDmg" && typeof w[k] === "number") s += it.st[k] * w[k]; }
+    if (it.dps && w.__model && (it.sl || it.slot) === "Two-Hand") return s + w.__model.weapon(it);
     if (it.dps) {
       const dps = it.dps + (it.st.wpnDmg && it.speed ? it.st.wpnDmg / it.speed : 0);
       s += dps * w.dps + Math.max(0, (it.speed || 0) - 3.0) * 10 * w.slow;
@@ -333,7 +413,7 @@
     const parts = [];
     if (it.dps || ref.dps) {
       const d = (it.dps || 0) - (ref.dps || 0);
-      if (Math.abs(d) >= 0.05) parts.push({ k: "dps", d, num: (d > 0 ? "+" : "−") + Math.abs(d).toFixed(1), txt: (d > 0 ? "+" : "−") + Math.abs(d).toFixed(1) + " DPS", z: !w.dps });
+      if (Math.abs(d) >= 0.05) parts.push({ k: "dps", d, num: (d > 0 ? "+" : "−") + Math.abs(d).toFixed(1), txt: (d > 0 ? "+" : "−") + Math.abs(d).toFixed(1) + " DPS", z: !w.dps && !w.__model });
     }
     DIFF_KEYS.forEach((k) => {
       const d = ((it.st && it.st[k]) || 0) - ((ref.st && ref.st[k]) || 0);
@@ -862,7 +942,7 @@
       const set = (v) => {
         v = Math.max(1, Math.min(60, Math.round(+v || 1)));
         saveLevel(ctx.key, v);
-        if (ctx.key === state.profile) { state.level = v; $("level").value = v; $("levelRange").value = v; updateLevelSource(); render(); }
+        if (ctx.key === state.profile) { state.level = v; $("level").value = v; $("levelRange").value = v; updateLevelSource(); loadProfile(); buildWeights(); render(); }
         renderDungeons();
       };
       const dn = el("button", "", "−"); dn.type = "button"; dn.setAttribute("aria-label", ctx.prof.label + " level down");

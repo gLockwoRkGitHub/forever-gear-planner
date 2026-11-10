@@ -79,6 +79,18 @@
   .preset[aria-pressed="true"] { color: var(--text); border-color: var(--accent); background: var(--accent-soft); }
   .wrow { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 13px; margin-top: 6px; }
   .wrow input { width: 76px; }
+  .wrow input.computed { border-style: dashed; color: var(--accent); background: var(--panel-3); }
+  .wrow input:disabled { opacity: .45; }
+  .mbox { margin-bottom: 12px; padding: 10px 12px; border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--line)); border-radius: 8px; background: var(--panel); }
+  .mbox p { margin: 0 0 6px; color: var(--stats); font-size: 13px; max-width: 110ch; }
+  .mbox p:last-child { margin-bottom: 0; }
+  .mbox .mhead b { color: var(--text); }
+  .mbox .mnote { color: var(--muted); font-size: 12px; }
+  .mbox .mlegend { display: none; }
+  .mbar { display: flex; gap: 2px; height: 22px; margin: 6px 0 8px; border-radius: 5px; overflow: hidden; }
+  .mseg { display: flex; align-items: center; flex-basis: 0; min-width: 0; padding: 0 6px; color: #15171b; font: 600 11px var(--font-body); white-space: nowrap; overflow: hidden; }
+  .mseg span { overflow: hidden; text-overflow: ellipsis; }
+  .mseg.s0 { background: #d9a441; } .mseg.s1 { background: #6fb3d9; } .mseg.s2 { background: #7fc28a; } .mseg.s3 { background: #d9785a; } .mseg.s4 { background: #b48be0; }
   .wnote { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-top: 12px; color: var(--muted); font-size: 12px; }
   .wnote span { min-width: 0; flex: 1 1 320px; }
   .wnote button { background: var(--panel-2); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 5px 12px; cursor: pointer; font: inherit; }
@@ -366,7 +378,9 @@
     #level { width: 52px; height: 40px; font-size: 20px; }
     select, input[type=number] { font-size: 16px; height: 40px; }
     .bar-right { grid-column: 1 / -1; margin-left: 0; }
-    .toggle { flex: 1; height: 40px; justify-content: space-between; font-size: 14px; }
+    .mseg span { display: none; }
+    .mbox .mlegend { display: block; color: var(--muted); font-size: 12.5px; }
+    .toggle { flex: 1 1 0; min-width: 0; height: 40px; justify-content: space-between; font-size: 14px; }
     .toggle .sum { max-width: 9.5em; font-size: 12px; }
 
     .panel { position: fixed; inset: 0; z-index: 30; overflow-y: auto; overscroll-behavior: contain; border-top: 0; background: var(--bg);
@@ -481,8 +495,9 @@
   <div class="panel gutter" id="panelWeights" hidden>
     <div class="sheet-head"><span class="sheet-title">Stat weights</span><button type="button" class="done" data-close>Done</button></div>
     <div class="presets" id="presetBox"></div>
+    <div id="mboxWrap"></div>
     <div class="groups" id="wgrid"></div>
-    <div class="wnote"><span>Score = sum of stat × weight. Weapons add DPS × weapon-DPS weight plus a bonus per 0.1 s of speed above 3.0. Starting values are estimates, not simulated.</span><button type="button" id="wReset">Reset to preset</button></div>
+    <div class="wnote"><span>Score = sum of stat × weight. With the level model, weights are computed for your level and two-handers are valued directly; the estimate presets use fixed weights (weapons: DPS × weapon-DPS weight plus a bonus per 0.1 s of speed above 3.0).</span><button type="button" id="wReset">Reset to preset</button></div>
   </div>
 </div>
 
@@ -512,6 +527,7 @@
         <li><b>Upgrade-Übersicht</b>: das beste Upgrade pro Slot auf einen Blick, mit dem Ort, wo es droppt.</li>
         <li><b>Vergleich wie im Spiel</b>: Maus auf ein Item, daneben erscheint, was du gerade trägst.</li>
         <li><b>Dungeon-Planer</b>: welcher Dungeon euch beiden am meisten bringt, Bosse in der richtigen Reihenfolge.</li>
+        <li><b>Level-Modell</b>: die Stat-Gewichte werden für euer aktuelles Level aus euren Talenten und Charakterwerten berechnet, Zweihänder nach Schaden und Tempo.</li>
       </ul>
     </div>
 
@@ -559,7 +575,7 @@
   <p class="data" id="dataInfo"></p>
   <details class="how">
     <summary>How the planner works</summary>
-    <p><b>Score</b> = sum of each stat × its weight (Stat weights). Green numbers are the gain over what you wear now; for rings and trinkets the weaker of your two is the one to replace. Special effects (Use, Chance on hit) are listed but not scored.</p>
+    <p><b>Score</b> = sum of each stat × its weight (Stat weights), counted in Strength points. By default the weights come from the <b>level model</b>: it computes each character's damage per second at the chosen level from their talents, character sheet and the ability ranks in the game data, and values two-handers by their damage and speed directly. The estimate presets are still there to compare. Green numbers are the gain over what you wear now; for rings and trinkets the weaker of your two is the one to replace. Special effects (Use, Chance on hit) are listed but not scored.</p>
     <p>Level and equipped gear come from Blizzard's API (the armory as a fallback) and refresh every hour; the game reports changes after you log out. A level set by hand lasts until the game reports a new level; the "↺" button next to the level goes back to it. Each character keeps its own level, filters, professions and weights. Shaman: two-handed axes, maces and staves, mail from level 40. Druid: staves, two-handed maces and polearms from level 20, cloth and leather only; in Forever, feral attacks scale with weapon damage. Items show up from the level you can realistically get them: the item's required level; for quest rewards the quest's minimum level, but no earlier than 3 levels below the quest's level.</p>
     <p>Crafted items that bind on pickup only count for the professions ticked under "My professions"; crafted items that bind on equip always count, since you can buy them or have them made. Items that need a profession to equip follow the same list.</p>
     <p>Item stats come from Wowhead's WoW Forever tooltips; drop, quest and vendor sources from QuestieDB's Forever database; crafting from the game data. Items Blizzard still hides (not yet discovered) are missing. Special equip effects are listed but not scored.</p>
