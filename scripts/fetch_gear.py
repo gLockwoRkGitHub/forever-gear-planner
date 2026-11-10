@@ -158,6 +158,30 @@ def blizzard_try(region, token, ns, realm, name_slug, what=""):
     return get_json(url, headers={"Authorization": f"Bearer {token}"})
 
 
+NS_SUFFIXES = ["forever", "classic-forever", "forever1x", "classic1x", "classic"]
+_REALMS = None
+
+
+def blizzard_realms(region, token):
+    """Realm slugs per profile namespace, read from the realm index of each dynamic namespace (once per run)."""
+    global _REALMS
+    if _REALMS is not None:
+        return _REALMS
+    _REALMS = {}
+    for suffix in NS_SUFFIXES:
+        ns = f"dynamic-{suffix}-{region}"
+        url = f"https://{region}.api.blizzard.com/data/wow/realm/index?namespace={ns}&locale=en_US"
+        try:
+            d = get_json(url, headers={"Authorization": f"Bearer {token}"})
+        except urllib.error.HTTPError as e:
+            log(f"Blizzard API: realm index {ns}: {e.code}")
+            continue
+        realms = [r for r in d.get("realms", []) if r.get("slug")]
+        log(f"Blizzard API: realm index {ns}: " + ", ".join(f"{r.get('name')} ({r['slug']})" for r in realms))
+        _REALMS[f"profile-{suffix}-{region}"] = [r["slug"] for r in realms]
+    return _REALMS
+
+
 def blizzard_locate(region, token, server, name, remembered):
     """Find namespace / realm / name spelling that works for WoW Forever; remembered between runs."""
     if remembered:
@@ -166,19 +190,32 @@ def blizzard_locate(region, token, server, name, remembered):
             return remembered
         except urllib.error.HTTPError:
             pass
-    namespaces = [f"profile-forever-{region}", f"profile-classic-forever-{region}", f"profile-forever1x-{region}"]
-    realms = [server, "forever", f"forever-{server}"]
+    index = blizzard_realms(region, token)
+    guesses = [server, "forever", f"forever-{server}"]
+    candidates = []  # (namespace, [realm slugs]); namespaces with a realm index first
+    for ns, slugs in index.items():
+        first = [s for s in slugs if server in s]
+        candidates.append((ns, first + [s for s in slugs if s not in first] + [g for g in guesses if g not in slugs]))
+    for suffix in NS_SUFFIXES[:3]:
+        ns = f"profile-{suffix}-{region}"
+        if ns not in index:
+            candidates.append((ns, guesses))
     low = name.lower()
-    slugs = [urllib.parse.quote(low), low.replace(" ", "-"), low.replace(" ", "")]
+    names = [urllib.parse.quote(low), low.replace(" ", "-"), low.replace(" ", "")]
     tried = []
-    for ns in namespaces:
+    for ns, realms in candidates:
         for realm in realms:
-            for slug in slugs:
+            codes = []
+            for slug in names:
                 try:
                     blizzard_try(region, token, ns, realm, slug)
+                    log(f"Blizzard API: found {name} at {ns}/{realm}/{slug}")
                     return {"ns": ns, "realm": realm, "slug": slug}
                 except urllib.error.HTTPError as e:
-                    tried.append(f"{ns}/{realm}/{slug}: {e.code}")
+                    codes.append(str(e.code))
+            tried.append(f"{ns}/{realm}: {'/'.join(codes)}")
+            if "403" in codes and ns not in index:
+                break  # namespace not available for this client
     raise RuntimeError("Blizzard API: character not found. Tried " + "; ".join(tried))
 
 
