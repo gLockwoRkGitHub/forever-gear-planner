@@ -12,6 +12,7 @@ Usage: python scripts/fetch_gear.py
 import base64
 import json
 import os
+import re
 import statistics
 import sys
 import urllib.error
@@ -215,7 +216,13 @@ def fetch_blizzard(region, server, name, token, remembered):
         if w:
             entry["dps"] = w.get("dps", {}).get("value")
             entry["speed"] = round((w.get("attack_speed", {}).get("value") or 0) / 1000, 2)
-        ench = [e.get("display_string") for e in i.get("enchantments", []) if e.get("display_string")]
+        # Equip effects Blizzard words differently (e.g. spell power on staves): fill missing stats from item data
+        info = item_from_db_or_tooltip(i["item"]["id"])
+        for k, v in (info or {}).get("st", {}).items():
+            st.setdefault(k, v)
+        # permanent enchants only (skips weapon imbues like Windfury), without the "Enchanted: " prefix
+        ench = [re.sub(r"^Enchanted:\s*", "", e["display_string"]) for e in i.get("enchantments", [])
+                if e.get("display_string") and e.get("enchantment_slot", {}).get("type") != "TEMPORARY"]
         if ench:
             entry["ench"] = "; ".join(ench)
         items.append(entry)
