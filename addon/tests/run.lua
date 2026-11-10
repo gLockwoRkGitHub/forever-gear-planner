@@ -191,6 +191,24 @@ check(not inBack(), "Furs gone once Earthen Echo is turned in")
 S:Set("hideDone", false)
 check(inBack(), "Furs back with 'Hide finished quests' off")
 S:Set("hideDone", true)
+-- a reward the data knows only by quest name learns the quest ID at the quest giver
+local cloak, trousers
+for _, it in ipairs(FS.Data.items) do
+  if it.n == "Catacomb Cloak" then cloak = it end
+  if it.n == "Deepgrave Trousers" then trousers = it end
+end
+if cloak and trousers and not cloak.src[1].id then
+  M.game.questID = 99001
+  M.game.questChoices = { M.link(cloak.id) }
+  M.fire("QUEST_DETAIL")
+  check(cloak.src[1].id == 99001 and FS.db.questIds[cloak.id] == 99001, "quest ID learned from the quest giver")
+  check(trousers.src[1].id == 99001, "other rewards of the same quest learn it too")
+  M.game.questChoices = {}
+  M.game.questID = nil
+else
+  say("(skipped: no name-only quest reward in the data)")
+end
+
 -- source switches on the Gear tab
 S:Set("sources", { "Quest", "Vendor", "Crafted" })
 local dungeonOnly = false

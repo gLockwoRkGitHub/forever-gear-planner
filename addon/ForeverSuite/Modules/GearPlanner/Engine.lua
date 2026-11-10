@@ -30,7 +30,46 @@ local function fillQuestIds(items)
 end
 G.FillQuestIds = fillQuestIds
 
+-- quest IDs learned in the game (see State.lua: at the quest giver the game names quest and rewards)
+local function applyLearnedQuestIds()
+  for itemID, questID in pairs(FS.db and FS.db.questIds or {}) do
+    local it = G.byId[itemID]
+    for _, s in ipairs(it and it.src or {}) do
+      if s.t == "Quest" and not s.id then s.id = questID end
+    end
+  end
+end
+
+-- At a quest giver: the quest's ID and its reward items. Rewards the data knows only by quest name get
+-- the ID (and keep it), so they disappear from the lists once the quest is turned in.
+function G:LearnQuestRewards(questID, itemIDs)
+  if not questID or questID == 0 then return false end
+  local learned = false
+  for _, id in ipairs(itemIDs) do
+    local it = self.byId[id]
+    for _, s in ipairs(it and it.src or {}) do
+      if s.t == "Quest" and not s.id then s.id = questID; FS.db.questIds[id] = questID; learned = true end
+    end
+  end
+  if learned then
+    fillQuestIds(FS.Data.items)
+    self.questItems[questID] = self.questItems[questID] or {}
+    for _, it in ipairs(FS.Data.items) do
+      for _, s in ipairs(it.src or {}) do
+        if s.t == "Quest" and s.id == questID then
+          local known = false
+          for _, x in ipairs(self.questItems[questID]) do if x == it then known = true end end
+          if not known then table.insert(self.questItems[questID], it) end
+        end
+      end
+    end
+  end
+  return learned
+end
+
 function G:IndexData()
+  for _, it in ipairs(FS.Data.items) do self.byId[it.id] = it end
+  applyLearnedQuestIds()
   fillQuestIds(FS.Data.items)
   for _, it in ipairs(FS.Data.items) do
     self.byId[it.id] = it

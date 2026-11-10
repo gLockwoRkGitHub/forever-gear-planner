@@ -138,6 +138,8 @@ function M.install(FS_items_lookup)
     GetTitleForQuestID = function(id) return "Quest title " .. id end,
   }
   _G.GetNumQuestChoices = function() return #g.questChoices end
+  _G.GetNumQuestRewards = function() return 0 end
+  _G.GetQuestID = function() return g.questID or 0 end
   _G.GetQuestItemLink = function(_, i) return g.questChoices[i] end
   _G.QuestInfoFrame = { rewardsFrame = widget("Frame", "QuestInfoRewardsFrame") }
   _G.QuestInfo_GetRewardButton = function(_, i) M.rewardButtons = M.rewardButtons or {}; M.rewardButtons[i] = M.rewardButtons[i] or widget("Button"); return M.rewardButtons[i] end

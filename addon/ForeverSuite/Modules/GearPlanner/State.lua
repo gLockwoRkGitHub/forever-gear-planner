@@ -322,6 +322,23 @@ function G:Init()
   FS:On("QUEST_TURNED_IN", o, function() later("quests", 1) end)
   FS:On("BAG_UPDATE_DELAYED", o, function() later("bags", 0.5) end)
   FS:On("PLAYER_ENTERING_WORLD", o, function() later("all", 2) end)
+  local function learnQuest()
+    local qid = GetQuestID and GetQuestID()
+    if not qid or qid == 0 or U.secret(qid) then return end
+    local ids = {}
+    for _, kind in ipairs({ "choice", "reward" }) do
+      local f = kind == "choice" and GetNumQuestChoices or GetNumQuestRewards
+      local okN, n = pcall(f or function() return 0 end)
+      for i = 1, (okN and n or 0) do
+        local ok, link = pcall(GetQuestItemLink, kind, i)
+        local id = ok and U.ItemIDFromLink(link)
+        if id then ids[#ids + 1] = id end
+      end
+    end
+    if G:LearnQuestRewards(qid, ids) then later("quests", 0.5) end
+  end
+  FS:On("QUEST_DETAIL", o, learnQuest)
+  FS:On("QUEST_COMPLETE", o, learnQuest)
   FS:On("GET_ITEM_INFO_RECEIVED", o, function(_, _, id)
     local st = S.self
     if not st then return end

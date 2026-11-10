@@ -33,6 +33,7 @@ local DB_DEFAULTS = {
   partners = {},         -- name -> last known state of a partner (Partner module)
   questSync = {},        -- name -> { at, ids = { [questID] = true } }
   instanceMap = {},      -- instanceID -> dungeon name (dungeons the game did not name in English)
+  questIds = {},         -- itemID -> questID, learned at quest givers for rewards the data knows only by quest name
   minimap = { angle = 200, hide = false },
   window = {},
   debug = false,
