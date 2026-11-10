@@ -23,10 +23,7 @@ def main():
         assert marker in template, f"template is missing {marker}"
     page = template.replace("/*__GEAR_DATA__*/", safe(data_js)).replace("/*__APP_JS__*/", safe(app_js))
     head, body = page.split("<!--BODY-->")
-    body = body.replace(
-        "<!--LOCAL_ONLY-->",
-        '<script>const whTooltips = { colorLinks: false, iconizeLinks: true, renameLinks: false };</script>\n'
-        '<script src="https://wow.zamimg.com/js/tooltips.js" async></script>')
+    body = body.replace("<!--LOCAL_ONLY-->", "")  # item tooltips are the page's own (no Wowhead script)
     html = ('<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n'
             '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n'
             '<meta name="robots" content="noindex, nofollow">\n'

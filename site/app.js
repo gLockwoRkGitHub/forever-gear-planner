@@ -116,6 +116,16 @@
   function profileState(key) { return key === state.profile ? state : readProfile(key); }
 
   const $ = (id) => document.getElementById(id);
+  const WOWHEAD = "https://www.wowhead.com/forever/item=";
+  const TT_INFO = new WeakMap();  // element -> what its tooltip shows
+  function iconImg(it, size) {
+    const img = document.createElement("img");
+    img.className = "ic" + (size === "large" ? " ic-l" : "");
+    img.alt = ""; img.loading = "lazy"; img.decoding = "async";
+    img.src = "https://wow.zamimg.com/images/wow/icons/" + (size === "large" ? "large" : "medium") + "/" + (it.ic || "inv_misc_questionmark") + ".jpg";
+    img.addEventListener("error", () => { img.style.display = "none"; }, { once: true });
+    return img;
+  }
   function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }
 
   // --- character switch -------------------------------------------------------------------
@@ -323,12 +333,12 @@
     const parts = [];
     if (it.dps || ref.dps) {
       const d = (it.dps || 0) - (ref.dps || 0);
-      if (Math.abs(d) >= 0.05) parts.push({ d, txt: (d > 0 ? "+" : "−") + Math.abs(d).toFixed(1) + " DPS", z: !w.dps });
+      if (Math.abs(d) >= 0.05) parts.push({ k: "dps", d, num: (d > 0 ? "+" : "−") + Math.abs(d).toFixed(1), txt: (d > 0 ? "+" : "−") + Math.abs(d).toFixed(1) + " DPS", z: !w.dps });
     }
     DIFF_KEYS.forEach((k) => {
       const d = ((it.st && it.st[k]) || 0) - ((ref.st && ref.st[k]) || 0);
       if (Math.abs(d) < 1e-9) return;
-      parts.push({ d, txt: (d > 0 ? "+" : "−") + fmtNum(d) + " " + (k === "armor" ? "Armor" : STAT_SHORT[k]), z: !w[k] && k !== "wpnDmg" });
+      parts.push({ k, d, num: (d > 0 ? "+" : "−") + fmtNum(d), txt: (d > 0 ? "+" : "−") + fmtNum(d) + " " + (k === "armor" ? "Armor" : STAT_SHORT[k]), z: !w[k] && k !== "wpnDmg" });
     });
     return parts;
   }
@@ -346,8 +356,13 @@
     return d;
   }
 
-  function itemLink(it) {
-    const a = el("a", "q" + it.q, it.n); a.href = "https://www.wowhead.com/forever/item=" + it.id; a.target = "_blank"; a.rel = "noopener";
+  // ctx tells the tooltip what to compare with: {kind: "cand"} (gear tab), {kind: "eq"} (worn item),
+  // {kind: "dungeon"} (both characters' worn items)
+  function itemLink(it, ctx) {
+    const a = el("a", "item q" + it.q); a.href = WOWHEAD + it.id; a.target = "_blank"; a.rel = "noopener";
+    a.appendChild(iconImg(it)); a.appendChild(el("span", "", it.n));
+    TT_INFO.set(a, Object.assign({ it }, ctx || { kind: "cand" }));
+    a.dataset.tt = "1";
     return a;
   }
 
@@ -357,7 +372,7 @@
     if (!eq.length) d.appendChild(el("span", "eq-none", "empty slot"));
     eq.forEach((e) => {
       const span = el("span", "eq-item");
-      span.appendChild(itemLink(e));
+      span.appendChild(itemLink(e, { kind: "eq" }));
       const note = e.est === true ? " · suffix stats estimated" : (e.est === "unknown" ? " · suffix stats unknown" : "");
       const swap = eq.length > 1 && e === ref ? " · weaker one, replace this" : "";
       span.appendChild(el("span", "meta", "score " + scoreW(e, w).toFixed(1) + swap + note));
@@ -471,7 +486,11 @@
       const eqTxt = !hasGear ? "" : (r.ref ? r.ref.n : (r.eq.length ? "one free slot" : "empty"));
       b.appendChild(el("span", "ov-eq", eqTxt));
       const up = el("span", "ov-up");
-      if (r.best) { up.appendChild(el("span", "ov-arrow", "→")); const n = el("b", "q" + r.best.it.q, r.best.it.n); up.appendChild(n); }
+      if (r.best) {
+        up.appendChild(el("span", "ov-arrow", "→"));
+        const n = el("b", "item q" + r.best.it.q); n.appendChild(iconImg(r.best.it)); n.appendChild(el("span", "", r.best.it.n));
+        TT_INFO.set(n, { it: r.best.it, kind: "cand" }); n.dataset.tt = "1"; up.appendChild(n);
+      }
       else up.textContent = "no upgrade now" + (r.next ? " · level " + r.next.L + ": " + r.next.it.n : "");
       b.appendChild(up);
       const src = el("span", "ov-src");
@@ -523,6 +542,163 @@
     });
   }
 
+  // --- WoW-style item tooltips with the worn item next to them ------------------------------
+  const STAT_FULL = { str: "Strength", agi: "Agility", sta: "Stamina", int: "Intellect", spi: "Spirit" };
+  const EQUIP_TEXT = {
+    ap: (v) => "+" + v + " Attack Power.", feralAp: (v) => "+" + v + " Attack Power in Cat, Bear and Dire Bear forms only.",
+    sp: (v) => "Increases damage and healing done by magical spells and effects by up to " + v + ".",
+    natureSp: (v) => "Increases damage done by Nature spells and effects by up to " + v + ".",
+    hit: (v) => "Improves your chance to hit by " + v + "%.", crit: (v) => "Improves your chance to get a critical strike by " + v + "%.",
+    hitR: (v) => "Improves hit rating by " + v + ".", critR: (v) => "Improves critical strike rating by " + v + ".",
+    exp: (v) => "Increases your expertise by " + v + ".", haste: (v) => "Improves haste rating by " + v + ".",
+    def: (v) => "Increased Defense +" + v + ".", dodge: (v) => "Increases your chance to dodge an attack by " + v + "%."
+  };
+  const SLOT_TYPE = { "Two-Handed Axe": "Axe", "Two-Handed Mace": "Mace", "Staff": "Staff", "Polearm": "Polearm",
+    Cloth: "Cloth", Leather: "Leather", Mail: "Mail", Totem: "Totem", Idol: "Idol" };
+  const DIFF_NAME = Object.assign({}, STAT_FULL, { ap: "Attack Power", feralAp: "Feral Attack Power", sp: "Spell Power",
+    natureSp: "Nature Spell Damage", hit: "% Hit", crit: "% Crit", hitR: "Hit Rating", critR: "Crit Rating", exp: "Expertise",
+    haste: "Haste", def: "Defense", dodge: "% Dodge", wpnDmg: "Weapon Damage", armor: "Armor" });
+
+  function ttLine(box, cls, left, right) {
+    const d = el("div", "tt-line " + (cls || ""));
+    d.appendChild(el("span", "", left));
+    if (right) d.appendChild(el("span", "tt-r", right));
+    box.appendChild(d);
+    return d;
+  }
+  // One tooltip box, laid out like the game's: name, binding, slot/type, damage, armor, stats, effects, requirements.
+  function ttBox(it, label, extra) {
+    const box = el("div", "tt-box");
+    if (label) box.appendChild(el("div", "tt-label", label));
+    const head = el("div", "tt-head");
+    head.appendChild(iconImg(it, "large"));
+    head.appendChild(el("div", "tt-name q" + it.q, it.n));
+    box.appendChild(head);
+    if (it.bop) ttLine(box, "", "Binds when picked up");
+    else if (it.boe) ttLine(box, "", "Binds when equipped");
+    const slot = it.sl || it.slot;
+    ttLine(box, "", slot === "Two-Hand" ? "Two-Hand" : slot, SLOT_TYPE[it.ty] || "");
+    if (it.dmgMin && it.dmgMax) ttLine(box, "", it.dmgMin + " - " + it.dmgMax + " Damage", "Speed " + (it.speed || 0).toFixed(2));
+    if (it.dps) ttLine(box, "", "(" + it.dps.toFixed(1) + " damage per second)");
+    const st = it.st || {};
+    if (st.armor) ttLine(box, "", st.armor + " Armor");
+    ["str", "agi", "sta", "int", "spi"].forEach((k) => { if (st[k]) ttLine(box, "", (st[k] > 0 ? "+" : "") + st[k] + " " + STAT_FULL[k]); });
+    if (st.wpnDmg) ttLine(box, "", "+" + st.wpnDmg + " Weapon Damage");
+    if (it.ench) it.ench.split("; ").forEach((e) => ttLine(box, "tt-green", e));
+    if (it.rnd && !it.slot) ttLine(box, "tt-green", "<Random enchantment>");
+    if (it.cl && it.cl.length) ttLine(box, "", "Classes: " + it.cl.join(", "));
+    if (it.rq) ttLine(box, "", "Requires Level " + it.rq);
+    if (it.np) ttLine(box, "", "Requires " + it.np);
+    if (it.il) ttLine(box, "tt-muted", "Item Level " + it.il);
+    Object.keys(EQUIP_TEXT).forEach((k) => { if (st[k]) ttLine(box, "tt-green", "Equip: " + EQUIP_TEXT[k](st[k])); });
+    (it.nt || []).forEach((n) => ttLine(box, "tt-green", n));
+    if (extra) extra(box);
+    return box;
+  }
+  function ttCompare(box, it, ref, w, label) {
+    const sec = el("div", "tt-cmp");
+    sec.appendChild(el("div", "tt-cmp-h", label));
+    const parts = statDiff(it, ref || { st: {} }, w);
+    if (!parts.length) sec.appendChild(el("div", "tt-muted", "No stat changes."));
+    parts.forEach((x) => {
+      sec.appendChild(el("div", (x.d > 0 ? "tt-pos" : "tt-neg") + (x.z ? " tt-z" : ""), x.num + " " + (x.k === "dps" ? "Damage per Second" : DIFF_NAME[x.k])));
+    });
+    const dlt = scoreW(it, w) - (ref ? scoreW(ref, w) : 0);
+    sec.appendChild(el("div", "tt-score " + (dlt > 0.05 ? "tt-pos" : "tt-neg"), "Score " + fmtDelta(dlt)));
+    box.appendChild(sec);
+  }
+  function ttSources(box, it, filter) {
+    const srcs = it.src ? it.src.filter(filter) : [];
+    if (!srcs.length) return;
+    const d = el("div", "tt-src");
+    srcs.slice(0, 3).forEach((s) => { const r = el("div"); r.appendChild(el("span", "tag " + s.t, s.t)); r.appendChild(document.createTextNode(sourceText(s, it))); d.appendChild(r); });
+    box.appendChild(d);
+  }
+
+  // The boxes for one hovered element: the item itself plus what the character(s) wear in that slot.
+  function ttBoxes(info) {
+    const it = info.it, out = [];
+    if (info.kind === "eq") { out.push(ttBox(it, "Currently Equipped")); return out; }
+    if (info.kind === "dungeon") {
+      out.push(ttBox(it, null, (box) => ttSources(box, it, (s) => (s.t === "Dungeon" && s.w === info.dungeon) || s.dq === info.dungeon)));
+      CHARS.forEach((key) => {
+        const g = charGear(key), prof = PROFILES[key], st = profileState(key);
+        if (!g || !wearable(it, 60, prof, st) || it.sl === "Relic") return;
+        const eq = g.items.filter((e) => e.slot === it.sl);
+        const ref = baselineItem(eq, it.sl, st.weights);
+        const who = charName(key) || prof.tag;
+        if (!eq.length) { out[0].appendChild(el("div", "tt-muted tt-note", who + ": slot is empty")); return; }
+        const shown = ref || eq[0];
+        out.push(ttBox(shown, who + " wears", (box) => ttCompare(box, it, ref, st.weights, "If " + who + " takes it:")));
+      });
+      return out;
+    }
+    const g = charGear(state.profile);
+    const eq = g && it.sl !== "Relic" ? g.items.filter((e) => e.slot === it.sl) : [];
+    const ref = g ? baselineItem(eq, it.sl, state.weights) : null;
+    out.push(ttBox(it, null, (box) => {
+      if (g && it.sl !== "Relic") ttCompare(box, it, ref, state.weights, ref ? "If you replace " + ref.n + ":" : "Fills a free slot:");
+      ttSources(box, it, (s) => srcUsable(it, s, state.level));
+    }));
+    eq.forEach((e) => out.push(ttBox(e, "Currently Equipped" + (eq.length > 1 && e === ref ? " · replaced" : ""))));
+    return out;
+  }
+
+  const tt = el("div", "tt"); tt.setAttribute("role", "tooltip"); tt.hidden = true; document.body.appendChild(tt);
+  const TOUCH = window.matchMedia("(hover: none)").matches;
+  let ttFor = null;
+  function showTT(target) {
+    const info = TT_INFO.get(target);
+    if (!info) return;
+    ttFor = target;
+    tt.innerHTML = "";
+    tt.classList.toggle("sheet", TOUCH);
+    const row = el("div", "tt-row");
+    ttBoxes(info).forEach((b) => row.appendChild(b));
+    tt.appendChild(row);
+    if (TOUCH) {
+      const bar = el("div", "tt-bar");
+      const wh = el("a", "tt-btn", "Open on Wowhead ↗"); wh.href = WOWHEAD + info.it.id; wh.target = "_blank"; wh.rel = "noopener";
+      const close = el("button", "tt-btn", "Close"); close.type = "button"; close.addEventListener("click", hideTT);
+      bar.appendChild(wh); bar.appendChild(close); tt.appendChild(bar);
+    }
+    tt.hidden = false;
+    if (!TOUCH) placeTT(target);
+  }
+  function placeTT(target) {
+    const r = target.getBoundingClientRect(), vw = window.innerWidth, vh = window.innerHeight, gap = 12, m = 8;
+    tt.style.left = "0px"; tt.style.top = "0px";
+    const w = tt.offsetWidth, h = tt.offsetHeight;
+    let x, y;
+    if (r.right + gap + w <= vw - m) x = r.right + gap;          // right of the link, like in the game
+    else if (r.left - gap - w >= m) x = r.left - gap - w;        // or left of it
+    if (x !== undefined) y = Math.max(m, Math.min(r.top - 8, vh - h - m));
+    else {                                                       // too wide for either side: below or above
+      x = Math.max(m, Math.min(r.left, vw - w - m));
+      y = r.bottom + 8 + h <= vh - m ? r.bottom + 8 : Math.max(m, r.top - 8 - h);
+    }
+    tt.style.left = x + "px"; tt.style.top = y + "px";
+  }
+  function hideTT() { tt.hidden = true; ttFor = null; }
+  if (!TOUCH) {
+    document.addEventListener("mouseover", (e) => {
+      const t = e.target.closest && e.target.closest("[data-tt]");
+      if (t && t !== ttFor) showTT(t);
+      else if (!t && ttFor) hideTT();
+    });
+    document.addEventListener("focusin", (e) => { const t = e.target.closest && e.target.closest("[data-tt]"); if (t) showTT(t); });
+    document.addEventListener("focusout", hideTT);
+    window.addEventListener("scroll", hideTT, { passive: true });
+  } else {
+    // phones: a tap on an item opens its tooltip as a sheet; Wowhead is one more tap away
+    document.addEventListener("click", (e) => {
+      const t = e.target.closest && e.target.closest("a[data-tt]");
+      if (t) { e.preventDefault(); showTT(t); return; }
+      if (!tt.hidden && !tt.contains(e.target)) hideTT();
+    }, true);
+  }
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") hideTT(); });
+
   // --- gear freshness in the header -----------------------------------------------------
   function ago(iso) {
     const t = new Date(iso);
@@ -553,7 +729,7 @@
     $("charSwitch").hidden = view !== "gear";
     $("charSub").textContent = view === "gear" ? P().sub
       : view === "dungeons" ? "Which dungeon helps you both most, each at your own level"
-      : "What a WoW Forever addon could add to this planner";
+      : "Was ein eigenes WoW-Forever-Addon zum Planer beitragen könnte";
     updateGearAge();
     openPanel(null);
     if (view === "dungeons") renderDungeons();
@@ -756,55 +932,100 @@
     tgi.addEventListener("change", () => { store.set("dOnlyUp", tgi.checked); renderDungeonDetail(name, ctxs, levels); });
     tg.appendChild(tgi); const tgl = el("span", "", "Only upgrades"); tg.appendChild(tgl);
     head.appendChild(tg);
-    box.appendChild(head);
+    const top = el("div", "dtop"); top.appendChild(head); box.appendChild(top);
     // an item matters when it is an upgrade now or soon for one of you (relics: always, pick by effect)
     const matters = (vs) => vs.some((x) => x.v.kind === "up" || x.v.kind === "relic" || (x.v.kind === "later" && x.v.gain > 0.05));
     let folded = 0;
 
-    // group by boss; quests and trash last
-    const groups = new Map();
+    // Sections in fight order: the bosses from the game data, then other named mobs, trash and quests.
+    const order = (DATA.bosses && DATA.bosses[name]) || [];
+    const sections = new Map();  // key -> {kind, title, info, items[], folded}
+    order.forEach((b, i) => sections.set(b.n.toLowerCase(), { kind: "boss", title: b.n, info: b, num: i + 1, items: [], folded: 0 }));
+    const sectionFor = (s) => {
+      if (s.t === "Quest") return ["~quests", { kind: "quest", title: "Quest rewards" }];
+      if (/^trash/.test(s.n)) return ["~trash", { kind: "trash", title: "Trash mobs" }];
+      return [s.n.toLowerCase(), { kind: "other", title: s.n }];
+    };
     let hidden = 0;
     DUNGEON_ITEMS[name].forEach((it) => {
       const verdicts = ctxs.map((ctx) => ({ ctx, v: verdict(it, name, ctx) }));
       if (verdicts.every((x) => x.v.kind === "no")) { hidden++; return; }
-      if (onlyUp && !matters(verdicts)) { folded++; return; }
+      const fold = onlyUp && !matters(verdicts);
+      if (fold) folded++;
       dungeonSources(it, name).forEach((s) => {
-        const key = s.t === "Quest" ? "Quest: " + s.n : (/^trash/.test(s.n) ? "Trash" : s.n);
-        if (!groups.has(key)) groups.set(key, []);
-        const arr = groups.get(key);
-        if (!arr.some((x) => x.it === it)) arr.push({ it, verdicts, best: Math.max.apply(null, verdicts.map((x) => x.v.gain || -999)) });
+        const [key, def] = sectionFor(s);
+        if (!sections.has(key)) sections.set(key, Object.assign({ items: [], folded: 0 }, def));
+        const sec = sections.get(key);
+        if (fold) { sec.folded++; return; }
+        if (!sec.items.some((x) => x.it === it)) sec.items.push({ it, s, verdicts, best: Math.max.apply(null, verdicts.map((x) => x.v.gain || -999)) });
       });
     });
-    const upsIn = (k) => groups.get(k).filter((x) => x.verdicts.some((y) => y.v.kind === "up")).length;
-    const order = Array.from(groups.keys()).sort((a, b) => {
-      const w = (k) => k.startsWith("Quest: ") ? 2 : (k === "Trash" ? 1 : 0);
-      return (w(a) - w(b)) || (upsIn(b) - upsIn(a));
-    });
-    if (!order.length) box.appendChild(el("p", "empty", "Nothing here is an upgrade for either of you right now or within " + SOON + " levels."));
-    order.forEach((key) => {
-      const sec = el("section", "boss");
-      const items = groups.get(key).sort((a, b) => b.best - a.best);
-      const h = el("h3", "", key);
-      const ups = items.filter((x) => x.verdicts.some((y) => y.v.kind === "up")).length;
-      if (ups) h.appendChild(el("small", "", ups + " upgrade" + (ups > 1 ? "s" : "")));
-      sec.appendChild(h);
-      const ol = el("ol");
-      items.forEach(({ it, verdicts }) => {
-        const li = el("li", "ditem");
-        const nm = el("div", "name");
-        const a = el("a", "q" + it.q, it.n); a.href = "https://www.wowhead.com/forever/item=" + it.id; a.target = "_blank"; a.rel = "noopener";
-        nm.appendChild(a);
-        const drop = dungeonSources(it, name).find((s) => s.dc);
-        nm.appendChild(el("span", "meta", it.sl + " · " + it.ty + " · req " + (it.rq || "–") + (drop ? " · " + drop.dc + "%" : "")));
-        li.appendChild(nm);
-        li.appendChild(el("div", "stats", statLine(it)));
-        const chips = el("div", "vchips");
-        verdicts.forEach(({ ctx, v }) => chips.appendChild(verdictChip(ctx.prof, v, it.sl)));
-        li.appendChild(chips);
-        ol.appendChild(li);
+    const rank = { boss: 0, other: 1, trash: 2, quest: 3 };
+    const list = Array.from(sections.values()).filter((x) => x.kind === "boss" || x.items.length || x.folded)
+      .sort((a, b) => (rank[a.kind] - rank[b.kind]) || ((a.num || 0) - (b.num || 0)));
+    const lastBoss = order.length;
+    const upsFor = (sec) => ctxs.map((ctx) => sec.items.filter((x) => x.verdicts.some((y) => y.ctx === ctx && y.v.kind === "up")).length);
+
+    // route: every boss in order, with a dot per character that gets an upgrade there
+    if (order.length) {
+      const route = el("ol", "route");
+      list.filter((x) => x.kind === "boss").forEach((sec) => {
+        const ups = upsFor(sec);
+        const li = el("li");
+        const b = el("button", "rstep" + (ups.some((n) => n) ? " has" : "")); b.type = "button";
+        b.appendChild(el("span", "rnum", String(sec.num)));
+        b.appendChild(el("span", "rname", sec.title));
+        const dots = el("span", "rdots");
+        ctxs.forEach((ctx, i) => { if (ups[i]) { const d = el("span", "dot"); d.style.setProperty("--cc", ctx.prof.color); d.title = (charName(ctx.key) || ctx.prof.tag) + ": " + ups[i] + " upgrade" + (ups[i] > 1 ? "s" : ""); dots.appendChild(d); } });
+        b.appendChild(dots);
+        b.addEventListener("click", () => { const t = $("boss-" + sec.num); if (t) t.scrollIntoView({ behavior: "smooth", block: "start" }); });
+        li.appendChild(b); route.appendChild(li);
       });
-      sec.appendChild(ol);
-      box.appendChild(sec);
+      top.appendChild(route);
+    }
+    if (!list.some((x) => x.items.length)) box.appendChild(el("p", "empty", "Nothing here is an upgrade for either of you right now or within " + SOON + " levels."));
+
+    list.forEach((sec) => {
+      const secUps = upsFor(sec);
+      const el_ = el("section", "boss " + sec.kind + (sec.items.length ? "" : " none") + (secUps.some((n) => n) ? " has-up" : ""));
+      if (sec.num) el_.id = "boss-" + sec.num;
+      const h = el("header", "boss-h");
+      h.appendChild(el("span", "bnum", sec.kind === "boss" ? String(sec.num) : sec.kind === "trash" ? "T" : sec.kind === "quest" ? "Q" : "•"));
+      const t = el("div", "btitle");
+      t.appendChild(el("h3", "", sec.title));
+      const sub = [];
+      if (sec.kind === "boss") {
+        sub.push(sec.num === lastBoss && lastBoss > 1 ? "Final boss" : "Boss " + sec.num + " of " + lastBoss);
+        if (sec.info.lv) sub.push("Level " + sec.info.lv + (sec.info.rk ? " " + sec.info.rk : ""));
+        if (sec.info.ty) sub.push(sec.info.ty);
+      } else if (sec.kind === "other") sub.push("Not in the boss list (rare or event mob)");
+      if (!sec.items.length) sub.push("nothing for you" + (sec.folded ? " (" + sec.folded + " drop" + (sec.folded > 1 ? "s" : "") + " hidden)" : ""));
+      if (sub.length) t.appendChild(el("p", "", sub.join(" · ")));
+      h.appendChild(t);
+      const sum = el("div", "bsum");
+      const ups = upsFor(sec);
+      ctxs.forEach((ctx, i) => { if (ups[i]) sum.appendChild(charChip(ctx.prof, ups[i] + " upgrade" + (ups[i] > 1 ? "s" : ""), "up")); });
+      h.appendChild(sum);
+      el_.appendChild(h);
+      if (sec.items.length) {
+        const ol = el("ol");
+        sec.items.sort((a, b) => b.best - a.best).forEach(({ it, s, verdicts }) => {
+          const li = el("li", "ditem");
+          const nm = el("div", "name");
+          nm.appendChild(itemLink(it, { kind: "dungeon", dungeon: name }));
+          const extra = s.t === "Quest" ? " · " + s.n : (s.dc ? " · " + s.dc + "% drop" : "");
+          nm.appendChild(el("span", "meta", it.sl + (it.ty && it.ty !== "Misc" ? " · " + it.ty : "") + (it.rq ? " · req " + it.rq : "") + extra));
+          li.appendChild(nm);
+          li.appendChild(el("div", "stats", statLine(it)));
+          const chips = el("div", "vchips");
+          verdicts.forEach(({ ctx, v }) => chips.appendChild(verdictChip(ctx.prof, v, it.sl)));
+          li.appendChild(chips);
+          ol.appendChild(li);
+        });
+        el_.appendChild(ol);
+      }
+      if (sec.items.length && sec.folded) el_.appendChild(el("p", "bnone", "+ " + sec.folded + " other drop" + (sec.folded > 1 ? "s" : "") + " without an upgrade (switch off \"Only upgrades\" to see them)"));
+      box.appendChild(el_);
     });
     if (folded) tgl.textContent = "Only upgrades · " + folded + " hidden";
     if (hidden) box.appendChild(el("p", "drest", hidden + " more drop" + (hidden > 1 ? "s" : "") + " that neither of you can use."));
@@ -812,6 +1033,103 @@
       ? "Upgrade = better score than what that character wears now."
       : "Upgrade = better score than what the character wears now where gear data exists, otherwise than the best quest, vendor or crafted item at that level.") + " #rank = place among everything available in that slot. Dungeons are ranked by the number of upgrades for both of you; the score gain breaks ties. Uses each character's own weights, professions and filters from the Gear tab."));
   }
+
+  // --- addon ideas (German): each idea can be marked; the marks go to Pasco via share or copy ------------
+  const IDEA_GROUPS = [
+    { title: "Im Spiel: Hilfe beim Looten und Questen", icon: "⚔", ideas: [
+      { id: "tooltip", t: "Upgrade-Zeile im Tooltip", e: "mittel",
+        d: "Jeder Item-Tooltip im Spiel zeigt, was das Item für jeden von uns wert ist. Funktioniert bei Loot, Händlern, Auktionshaus und Questbelohnungen.",
+        x: "Koda +4.2 · Tato +6.1" },
+      { id: "questpick", t: "Beste Questbelohnung markieren", e: "klein",
+        d: "Bietet eine Quest mehrere Belohnungen an, hebt das Addon die beste für deinen Charakter hervor.", x: "★ Ferine Leggings (+14.8)" },
+      { id: "dungeon", t: "Dungeon-Spickzettel", e: "mittel",
+        d: "Beim Betreten eines Dungeons öffnet sich ein kleines Fenster: welcher Boss droppt für wen ein Upgrade. Die Daten kommen aus dem Dungeon-Planer.",
+        x: "2 Viscous Fallout – Tato: Hydrocane" } ] },
+    { title: "Zu zweit in der Gruppe", icon: "⚑", ideas: [
+      { id: "loot", t: "Loot-Ansage", e: "mittel",
+        d: "Droppt etwas, sehen wir beide sofort, wer mehr davon hat. Kein Rechnen mehr bei Bedarf oder Gier.", x: "Tato +8.0 · Koda +1.5" },
+      { id: "questsync", t: "Quest-Abgleich", e: "mittel",
+        d: "Das Addon merkt sich, welche Quests jeder allein erledigt hat, und zeigt dem anderen, was er nachholen muss, damit wir auf demselben Stand bleiben.",
+        x: "Koda fehlt: The Offering of Blood, Earthen Echo" },
+      { id: "crits", t: "Crit-Rekorde", e: "klein",
+        d: "Neuer Höchstwert bei einem kritischen Treffer? Das Addon meldet ihn in der Gruppe und führt eine gemeinsame Bestenliste.",
+        x: "Neuer Rekord: Tato, Ferocious Bite 412" } ] },
+    { title: "Vom Spiel zur Seite", icon: "⇄", ideas: [
+      { id: "doneq", t: "Erledigte Quests ausblenden", e: "klein",
+        d: "Belohnungen von Quests, die du schon abgegeben hast, verschwinden aus den Listen der Seite. Ein kurzer Export-Text aus dem Spiel reicht." },
+      { id: "gearnow", t: "Gear sofort aktualisieren", e: "klein",
+        d: "Statt auf den stündlichen Abruf und das Ausloggen zu warten, kopierst du dein aktuelles Gear direkt aus dem Spiel in die Seite." },
+      { id: "gaps", t: "Datenlücken füllen", e: "mittel",
+        d: "Im Spiel siehst du Werte von Items, die Wowhead noch versteckt. Das Addon merkt sie sich mit Boss oder Quest und gibt sie an die Seite weiter." } ] }
+  ];
+  const VOTES = [["yes", "Will ich"], ["maybe", "Vielleicht"], ["no", "Eher nicht"]];
+  function renderAddons() {
+    const votes = store.get("addonVotes", {});
+    const box = $("ideaBox"); box.innerHTML = "";
+    IDEA_GROUPS.forEach((g) => {
+      const sec = el("section", "idea-group");
+      const h = el("h3"); h.appendChild(el("span", "gi", g.icon)); h.appendChild(document.createTextNode(g.title)); sec.appendChild(h);
+      g.ideas.forEach((idea) => {
+        const art = el("article", "idea" + (votes[idea.id] ? " v-" + votes[idea.id] : ""));
+        const top = el("div", "idea-top"); top.appendChild(el("h4", "", idea.t)); top.appendChild(el("span", "effort", "Aufwand: " + idea.e));
+        art.appendChild(top);
+        art.appendChild(el("p", "", idea.d));
+        if (idea.x) { const ex = el("p", "ex"); ex.appendChild(document.createTextNode("Beispiel: ")); ex.appendChild(el("span", "mono", idea.x)); art.appendChild(ex); }
+        const v = el("div", "vote"); v.setAttribute("role", "radiogroup"); v.setAttribute("aria-label", "Bewertung: " + idea.t);
+        VOTES.forEach(([val, label]) => {
+          const l = el("label"); const r = el("input"); r.type = "radio"; r.name = "v_" + idea.id; r.value = val; r.checked = votes[idea.id] === val;
+          r.addEventListener("click", () => {
+            const cur = store.get("addonVotes", {});
+            if (cur[idea.id] === val) { delete cur[idea.id]; r.checked = false; } else cur[idea.id] = val;  // click again to clear
+            store.set("addonVotes", cur); renderAddons();
+          });
+          l.appendChild(r); l.appendChild(el("span", "", label)); v.appendChild(l);
+        });
+        art.appendChild(v);
+        sec.appendChild(art);
+      });
+      box.appendChild(sec);
+    });
+    const all = IDEA_GROUPS.flatMap((g) => g.ideas);
+    const count = (val) => all.filter((i) => votes[i.id] === val).length;
+    const sum = $("voteSum"); sum.innerHTML = "";
+    const marked = all.filter((i) => votes[i.id]).length;
+    if (!marked) sum.textContent = "Noch nichts markiert. " + all.length + " Ideen warten auf dich.";
+    else {
+      sum.appendChild(el("b", "", marked + " von " + all.length + " markiert"));
+      sum.appendChild(document.createTextNode(": " + count("yes") + "× Will ich, " + count("maybe") + "× Vielleicht, " + count("no") + "× Eher nicht"));
+    }
+  }
+  function voteText() {
+    const votes = store.get("addonVotes", {});
+    const all = IDEA_GROUPS.flatMap((g) => g.ideas);
+    const lines = ["Forever Gear Planner – meine Addon-Auswahl"];
+    VOTES.forEach(([val, label]) => {
+      const names = all.filter((i) => votes[i.id] === val).map((i) => i.t);
+      if (names.length) lines.push(label + ": " + names.join(", "));
+    });
+    const open = all.filter((i) => !votes[i.id]).map((i) => i.t);
+    if (open.length && open.length < all.length) lines.push("Nicht bewertet: " + open.join(", "));
+    const note = ($("voteNote").value || "").trim();
+    if (note) lines.push("Anmerkung: " + note);
+    return lines.join("\n");
+  }
+  function voteHint(msg) { const h = $("voteHint"); h.textContent = msg; }
+  async function copyVotes() {
+    try { await navigator.clipboard.writeText(voteText()); voteHint("Kopiert. Füg den Text einfach in den Chat mit Pasco ein."); }
+    catch (e) { window.prompt("Text zum Kopieren:", voteText()); }
+  }
+  $("voteNote").value = store.get("addonNote", "");
+  $("voteNote").addEventListener("input", () => store.set("addonNote", $("voteNote").value));
+  $("voteCopy").addEventListener("click", copyVotes);
+  $("voteShare").addEventListener("click", async () => {
+    if (navigator.share) {
+      try { await navigator.share({ title: "Addon-Ideen", text: voteText() }); return; } catch (e) { if (e && e.name === "AbortError") return; }
+    }
+    copyVotes();
+  });
+  $("voteReset").addEventListener("click", () => { store.set("addonVotes", {}); store.set("addonNote", ""); $("voteNote").value = ""; renderAddons(); });
+  renderAddons();
 
   function applyProfile() {
     loadProfile();

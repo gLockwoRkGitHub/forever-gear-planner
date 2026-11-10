@@ -234,6 +234,7 @@ for iid in ids:
         "sl": SLOTS[inv],
         "ty": ARMOR_SUBCLASS.get(sub) if cls == 4 else WEAPON_SUBCLASS.get(sub),
         "st": p["stats"], "src": sources,
+        **({"ic": data["icon"]} if data.get("icon") else {}),
         **({"cl": p["classes"]} if p["classes"] else {}),
     }
     for k in ("dmgMin", "dmgMax", "speed", "dps"):
@@ -260,7 +261,74 @@ print(dict(counters))
 print("Most common unscored effect lines:")
 for k, v in unparsed_lines.most_common(25):
     print(" ", v, k)
-payload = {"generated": date.today().isoformat(), "build": BUILD, "count": len(out_items), "items": out_items}
+# ---------------------------------------------------------------- dungeon bosses in fight order
+# DungeonEncounter gives the order per instance map; Questie the level and rank; Wowhead the creature type.
+NPC_CACHE = TT.parent / "npcs"
+NPC_URL = "https://nether.wowhead.com/forever/tooltip/npc/{}"
+RANKS = {1: "Elite", 2: "Rare Elite", 3: "Boss", 4: "Rare"}
+
+
+def npc_type(nid):
+    import urllib.request
+    NPC_CACHE.mkdir(parents=True, exist_ok=True)
+    f = NPC_CACHE / f"{nid}.json"
+    if not f.exists():
+        try:
+            req = urllib.request.Request(NPC_URL.format(nid), headers={"User-Agent": "forever-gear-planner"})
+            with urllib.request.urlopen(req, timeout=30) as r:
+                f.write_bytes(r.read())
+        except Exception:  # noqa: BLE001
+            return None
+    try:
+        tip = json.loads(f.read_text(encoding="utf-8")).get("tooltip", "")
+    except ValueError:
+        return None
+    m = re.search(r"Level [^<]*?(?:\d+|\?\?)\s+([A-Z][A-Za-z ]+?)\s*(?:\([^)]*\))?\s*<", tip)
+    return m.group(1).strip() if m else None
+
+
+dungeon_by_boss = defaultdict(Counter)  # boss name -> dungeon names used by the items' sources
+for it in out_items:
+    for s_ in it["src"]:
+        if s_["t"] == "Dungeon":
+            dungeon_by_boss[s_["n"]][s_["w"]] += 1
+encounters = defaultdict(list)
+for r in rows("DungeonEncounter.csv"):
+    encounters[to_int(r["MapID"])].append(r)
+bosses = {}
+for mid, rs in encounters.items():
+    m = maps.get(mid)
+    if not m or m["InstanceType"] != "1":
+        continue
+    diffs = {to_int(r["DifficultyID"]) for r in rs}
+    keep = {d for d in diffs if d in (0, 1)} or {min(diffs)}
+    rs = sorted((r for r in rs if to_int(r["DifficultyID"]) in keep), key=lambda r: to_int(r["OrderIndex"]))
+    names = list(dict.fromkeys(r["Name_lang"] for r in rs))
+    votes = Counter()
+    for n in names:
+        votes.update(dungeon_by_boss.get(n, {}))
+    dname = votes.most_common(1)[0][0] if votes else m["MapName_lang"]
+    out = []
+    for n in names:
+        # only trust an NPC record that spawns in this dungeon (new Forever dungeons are often missing)
+        cands = npcs_by_name.get(n.lower(), [])
+        npc = next((c for c in cands if npc_dungeon(c) in (dname, m["MapName_lang"])), None)
+        nid = next((k for k, v in qnpcs.items() if v is npc), None) if npc else None
+        b = {"n": n}
+        if npc:
+            lv = npc.get("maxLevel") or npc.get("minLevel")
+            if lv and lv <= 63:
+                b["lv"] = lv
+            if RANKS.get(npc.get("rank")):
+                b["rk"] = RANKS[npc["rank"]]
+        if nid:
+            ty = npc_type(nid)
+            if ty:
+                b["ty"] = ty
+        out.append(b)
+    bosses[dname] = out
+print("bosses for", len(bosses), "dungeons:", ", ".join(sorted(bosses)))
+payload = {"generated": date.today().isoformat(), "build": BUILD, "count": len(out_items), "items": out_items, "bosses": bosses}
 OUT.parent.mkdir(parents=True, exist_ok=True)
 OUT.write_text("window.GEAR_DATA = " + json.dumps(payload, separators=(",", ":")) + ";\n", encoding="utf-8")
 print("written", OUT, f"{OUT.stat().st_size / 1024:.0f} KB")

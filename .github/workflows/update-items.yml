@@ -33,7 +33,9 @@ jobs:
       - name: Restore tooltip cache
         uses: actions/cache@v4
         with:
-          path: .cache/tooltips
+          path: |
+            .cache/tooltips
+            .cache/npcs
           key: tooltips-${{ github.run_id }}
           restore-keys: tooltips-
 

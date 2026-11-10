@@ -92,11 +92,15 @@ def suffix_stats(slot, ilvl, suffix):
     return {k: (round(share * 2) if k == "ap" else max(1, round(share))) for k in keys}
 
 
+# what the page's item tooltip shows besides stats
+TOOLTIP_KEYS = ("dps", "speed", "dmgMin", "dmgMax", "ic", "rq", "nt", "boe", "bop")
+
+
 def item_from_db_or_tooltip(iid):
     if iid in ITEMS:
         it = ITEMS[iid]
         out = {"st": dict(it["st"]), "ty": it.get("ty"), "base": it["n"], "rnd": bool(it.get("rnd"))}
-        for k in ("dps", "speed"):
+        for k in TOOLTIP_KEYS:
             if k in it:
                 out[k] = it[k]
         return out
@@ -106,9 +110,18 @@ def item_from_db_or_tooltip(iid):
         return None
     p = parse_tooltip(data)
     out = {"st": p["stats"], "ty": None, "base": data.get("name"), "rnd": p["random"]}
-    for k in ("dps", "speed"):
+    for k in ("dps", "speed", "dmgMin", "dmgMax"):
         if k in p:
             out[k] = p[k]
+    if data.get("icon"):
+        out["ic"] = data["icon"]
+    if p.get("req"):
+        out["rq"] = p["req"]
+    if p.get("notes"):
+        out["nt"] = p["notes"]
+    for k in ("boe", "bop"):
+        if p.get(k):
+            out[k] = 1
     return out
 
 
@@ -124,7 +137,7 @@ def fetch_armory(region, server, name):
         info = item_from_db_or_tooltip(i["id"]) or {"st": {}, "base": i["name"], "rnd": False}
         entry = {"slot": slot, "raw": i["slot"], "id": i["id"], "n": i["name"], "q": QUALITY.get(i.get("quality"), 1),
                  "il": i.get("ilvl") or 0, "st": info["st"], "ty": info.get("ty")}
-        for k in ("dps", "speed"):
+        for k in TOOLTIP_KEYS:
             if k in info:
                 entry[k] = info[k]
         if i.get("enchant"):
@@ -210,17 +223,33 @@ def fetch_blizzard(region, server, name, token, remembered):
             if desc.startswith("Equip:"):
                 desc = desc[6:].strip()
             parse_equip(desc, st)
-        entry = {"slot": slot, "raw": i["slot"]["type"], "id": i["item"]["id"], "n": i.get("name"),
-                 "q": QUALITY.get(i.get("quality", {}).get("type"), 1), "il": i.get("level", {}).get("value", 0),
-                 "st": st, "ty": ITEMS.get(i["item"]["id"], {}).get("ty")}
-        w = i.get("weapon")
-        if w:
-            entry["dps"] = w.get("dps", {}).get("value")
-            entry["speed"] = round((w.get("attack_speed", {}).get("value") or 0) / 1000, 2)
         # Equip effects Blizzard words differently (e.g. spell power on staves): fill missing stats from item data
         info = item_from_db_or_tooltip(i["item"]["id"])
         for k, v in (info or {}).get("st", {}).items():
             st.setdefault(k, v)
+        entry = {"slot": slot, "raw": i["slot"]["type"], "id": i["item"]["id"], "n": i.get("name"),
+                 "q": QUALITY.get(i.get("quality", {}).get("type"), 1), "il": i.get("level", {}).get("value", 0),
+                 "st": st, "ty": ITEMS.get(i["item"]["id"], {}).get("ty")}
+        for k in ("ic", "nt", "rq", "boe", "bop", "dmgMin", "dmgMax"):
+            if k in (info or {}):
+                entry[k] = info[k]
+        req = i.get("requirements", {}).get("level", {}).get("value")
+        if req:
+            entry["rq"] = req
+        bind = i.get("binding", {}).get("type")
+        if bind:
+            entry.pop("boe", None); entry.pop("bop", None)
+            if bind == "ON_EQUIP":
+                entry["boe"] = 1
+            elif bind in ("ON_ACQUIRE", "TO_ACCOUNT", "QUEST"):
+                entry["bop"] = 1
+        w = i.get("weapon")
+        if w:
+            entry["dps"] = w.get("dps", {}).get("value")
+            entry["speed"] = round((w.get("attack_speed", {}).get("value") or 0) / 1000, 2)
+            dmg = w.get("damage", {})
+            if dmg.get("min_value") is not None and dmg.get("max_value") is not None:
+                entry["dmgMin"], entry["dmgMax"] = dmg["min_value"], dmg["max_value"]
         # permanent enchants only (skips weapon imbues like Windfury), without the "Enchanted: " prefix
         ench = [re.sub(r"^Enchanted:\s*", "", e["display_string"]) for e in i.get("enchantments", [])
                 if e.get("display_string") and "TEMP" not in str(e.get("enchantment_slot", {}).get("type", "")).upper()]
