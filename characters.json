@@ -1,0 +1,7 @@
+{
+  "region": "eu",
+  "characters": [
+    { "key": "shaman", "name": "Koda Ashmane", "server": "normal" },
+    { "key": "druid", "name": "Tato Mcpaw", "server": "normal" }
+  ]
+}

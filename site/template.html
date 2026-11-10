@@ -1,0 +1,389 @@
+<title>Forever Gear Planner</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+  /* Layout: sticky control bar over a grid of slot cards; on phones the bar compacts to two rows
+     and the filter / weight panels open as full-screen sheets.
+     Deliberately single dark theme: WoW item-quality colours are designed for a dark ground. */
+  :root {
+    color-scheme: dark;
+    --bg: #14161a; --panel: #1c1f25; --panel-2: #23272e; --panel-3: #191c21; --line: #2f343d;
+    --text: #e6e2d6; --muted: #9a9686; --stats: #cfcab9; --note: #b7a77a;
+    --accent: #d9a441; --accent-soft: #2b2a24; --accent-2: #4fa3d9; --on-tag: #15171b; --good: #6cc070;
+    --q2: #3fd14a; --q3: #4d9cff; --q4: #b46cf2;
+    --quest: #e8c35a; --dungeon: #d9785a; --vendor: #7fc28a; --crafted: #6fb3d9;
+    --font-body: "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
+    --font-display: Georgia, "Times New Roman", "Noto Serif", serif;
+    --gutter: 24px;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 var(--font-body); -webkit-text-size-adjust: 100%; }
+  body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--panel); }
+  .gutter { padding-left: max(var(--gutter), env(safe-area-inset-left, 0px)); padding-right: max(var(--gutter), env(safe-area-inset-right, 0px)); }
+
+  /* ---- header ---- */
+  header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 20px; padding-block: 16px 14px; border-bottom: 1px solid var(--line); background: linear-gradient(180deg, var(--panel), var(--bg)); }
+  .head-text { flex: 1 1 520px; min-width: 0; }
+  h1 { margin: 0; font: 600 22px/1.2 var(--font-display); color: var(--accent); letter-spacing: .3px; }
+  .sub { color: var(--muted); margin-top: 4px; font-size: 13px; }
+  .switch { display: inline-flex; gap: 4px; padding: 4px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); }
+  .switch button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 7px 14px; border: 0; border-radius: 7px; background: transparent; color: var(--muted); font: 600 13px var(--font-body); cursor: pointer; }
+  .switch button:hover { color: var(--text); }
+  .switch button[aria-pressed="true"] { background: var(--panel-2); color: var(--text); box-shadow: inset 0 0 0 1px var(--cc); }
+  .switch .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--cc); opacity: .45; }
+  .switch button[aria-pressed="true"] .dot { opacity: 1; }
+
+  /* ---- toolbar ---- */
+  .toolbar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--panel); border-top: 2px solid var(--cc, var(--line)); border-bottom: 1px solid var(--line); box-shadow: 0 6px 18px rgba(0,0,0,.25); }
+  .bar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 26px; padding-block: 12px; }
+  .ctl { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .lbl { color: var(--muted); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .8px; }
+  .level-box { display: flex; align-items: center; gap: 6px; }
+  .level-box button { width: 32px; height: 32px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel-2); color: var(--text); font-size: 18px; line-height: 1; cursor: pointer; touch-action: manipulation; }
+  .level-box button:hover { border-color: var(--accent); }
+  #level { width: 56px; text-align: center; font: 600 20px/1 var(--font-display); color: var(--accent); background: transparent; border: 1px solid var(--line); border-radius: 6px; padding: 5px 0; -moz-appearance: textfield; }
+  #level::-webkit-outer-spin-button, #level::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  input[type=range] { width: 190px; accent-color: var(--accent); }
+  select, input[type=number] { background: var(--panel-2); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; font: inherit; }
+  .bar-right { display: flex; gap: 8px; margin-left: auto; }
+  .toggle { display: inline-flex; align-items: center; gap: 8px; height: 34px; padding: 0 12px; border-radius: 7px; border: 1px solid var(--line); background: var(--panel-2); color: var(--text); font: 600 13px var(--font-body); cursor: pointer; }
+  .toggle:hover { border-color: var(--accent); }
+  .toggle[aria-expanded="true"] { border-color: var(--accent); background: var(--accent-soft); }
+  .toggle .sum { color: var(--muted); font-weight: 400; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .toggle .caret { color: var(--muted); font-size: 10px; transition: transform .15s; }
+  .lab-short { display: none; }
+  .toggle[aria-expanded="true"] .caret { transform: rotate(180deg); }
+  button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 2px; }
+
+  /* ---- panels (inline on desktop, full-screen sheets on phones) ---- */
+  .panel { border-top: 1px solid var(--line); padding-block: 14px 16px; background: var(--panel-3); }
+  .sheet-head { display: none; }
+  .groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+  .group { margin: 0; padding: 10px 12px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); min-width: 0; }
+  .group legend { padding: 0 6px; margin-left: -6px; }
+  .group .hint { margin: 8px 0 0; color: var(--muted); font-size: 11.5px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+  .chip { position: relative; display: inline-flex; }
+  .chip input { position: absolute; inset: 0; margin: 0; opacity: 0; cursor: pointer; }
+  .chip span { display: inline-flex; align-items: center; gap: 6px; padding: 4px 11px; border: 1px solid var(--line); border-radius: 999px; background: var(--panel-2); color: var(--muted); font-size: 13px; user-select: none; }
+  .chip span::before { content: ""; width: 8px; height: 8px; border-radius: 50%; border: 1px solid var(--muted); }
+  .chip input:checked + span { color: var(--text); border-color: var(--chip, var(--accent)); background: color-mix(in srgb, var(--chip, var(--accent)) 16%, var(--panel-2)); }
+  .chip input:checked + span::before { background: var(--chip, var(--accent)); border-color: var(--chip, var(--accent)); }
+  .chip input:focus-visible + span { outline: 2px solid var(--accent-2); outline-offset: 2px; }
+  .chip:hover span { border-color: var(--muted); }
+  .chip[data-k="Quest"] { --chip: var(--quest); } .chip[data-k="Dungeon"] { --chip: var(--dungeon); }
+  .chip[data-k="Vendor"] { --chip: var(--vendor); } .chip[data-k="Crafted"] { --chip: var(--crafted); }
+  .presets { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; }
+  .presets:empty { display: none; }
+  .preset { padding: 4px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel-2); color: var(--muted); font: 13px var(--font-body); cursor: pointer; }
+  .preset:hover { border-color: var(--muted); }
+  .preset[aria-pressed="true"] { color: var(--text); border-color: var(--accent); background: var(--accent-soft); }
+  .wrow { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 13px; margin-top: 6px; }
+  .wrow input { width: 76px; }
+  .wnote { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-top: 12px; color: var(--muted); font-size: 12px; }
+  .wnote span { min-width: 0; flex: 1 1 320px; }
+  .wnote button { background: var(--panel-2); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 5px 12px; cursor: pointer; font: inherit; }
+  .wnote button:hover { border-color: var(--accent); }
+
+  /* ---- results ---- */
+  main { padding-block: 18px 40px; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 520px), 1fr)); gap: 16px; }
+  main.single { grid-template-columns: minmax(0, 760px); }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; min-width: 0; }
+  .card h2 { margin: 0; padding: 10px 14px; font: 600 15px/1.2 var(--font-display); color: var(--text); background: var(--panel-2); border-bottom: 1px solid var(--line); display: flex; flex-wrap: wrap; gap: 4px 12px; justify-content: space-between; align-items: baseline; }
+  .card h2 small { color: var(--muted); font: 12px var(--font-body); }
+  ol { list-style: none; margin: 0; padding: 0; }
+  li.row { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 4px 10px; padding: 9px 14px; border-bottom: 1px solid var(--line); }
+  li.row:last-child { border-bottom: 0; }
+  .rank { color: var(--muted); font: 600 13px var(--font-display); padding-top: 1px; font-variant-numeric: tabular-nums; }
+  .name a { font-weight: 600; text-decoration: none; }
+  .name a:hover { text-decoration: underline; }
+  .q2 { color: var(--q2); } .q3 { color: var(--q3); } .q4 { color: var(--q4); }
+  .meta { color: var(--muted); font-size: 12px; margin-left: 6px; }
+  .stats { font-size: 12.5px; color: var(--stats); margin-top: 2px; }
+  .src { font-size: 12px; margin-top: 3px; color: var(--muted); }
+  .tag { display: inline-block; font-size: 10.5px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; padding: 1px 6px; border-radius: 4px; margin-right: 6px; color: var(--on-tag); }
+  .tag.Quest { background: var(--quest); } .tag.Dungeon { background: var(--dungeon); } .tag.Vendor { background: var(--vendor); } .tag.Crafted { background: var(--crafted); }
+  .note { font-size: 11.5px; color: var(--note); font-style: italic; margin-top: 2px; }
+  .score { text-align: right; font: 600 15px var(--font-display); color: var(--accent); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .score small { display: block; color: var(--muted); font: 11px var(--font-body); }
+  .next { padding: 8px 14px; font-size: 12px; color: var(--muted); background: var(--panel-3); border-top: 1px dashed var(--line); }
+  .next b { color: var(--text); font-weight: 600; }
+  .empty { padding: 14px; color: var(--muted); font-size: 13px; }
+  footer { padding-block: 0 30px; color: var(--muted); font-size: 12px; max-width: 1100px; }
+  footer p { margin: 6px 0; }
+
+  [hidden] { display: none !important; }
+
+  /* ---- view tabs ---- */
+  .tabs { display: flex; gap: 2px; overflow-x: auto; background: var(--bg); border-bottom: 1px solid var(--line); scrollbar-width: none; }
+  .tabs a { padding: 10px 14px 9px; color: var(--muted); text-decoration: none; font: 600 14px var(--font-body); border-bottom: 2px solid transparent; white-space: nowrap; }
+  .tabs a:hover { color: var(--text); }
+  .tabs a[aria-current="page"] { color: var(--text); border-bottom-color: var(--accent); }
+
+  /* ---- dungeon planner ---- */
+  .dbar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; padding-block: 10px; background: var(--panel); border-bottom: 1px solid var(--line); box-shadow: 0 6px 18px rgba(0,0,0,.25); }
+  .dlevels { display: flex; flex-wrap: wrap; gap: 10px 28px; }
+  .dlevel { display: flex; align-items: center; gap: 10px; }
+  .dlevel .dot, .vchip .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--cc); flex: none; }
+  .dname { font-weight: 600; }
+  .dlevel input { width: 56px; text-align: center; font: 600 18px var(--font-display); color: var(--accent); background: transparent; border: 1px solid var(--line); border-radius: 6px; padding: 5px 0; -moz-appearance: textfield; }
+  .dlevel input::-webkit-outer-spin-button, .dlevel input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  .dwrap { display: grid; grid-template-columns: minmax(0, 380px) minmax(0, 1fr); gap: 16px; align-items: start; padding-block: 16px 40px; }
+  .dlist { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+  .drow { display: flex; flex-direction: column; gap: 5px; width: 100%; padding: 10px 12px; text-align: left; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); color: var(--text); font: inherit; cursor: pointer; }
+  .drow:hover { border-color: var(--muted); }
+  .drow[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+  .drow-top { display: flex; align-items: baseline; gap: 10px; }
+  .drank { width: 18px; color: var(--muted); font: 600 13px var(--font-display); font-variant-numeric: tabular-nums; }
+  .dtitle { flex: 1; min-width: 0; font: 600 15px var(--font-display); }
+  .dscore { color: var(--accent); font: 600 15px var(--font-display); font-variant-numeric: tabular-nums; }
+  .drow-meta { margin: 0; color: var(--muted); font-size: 12px; }
+  .drow-chips, .vchips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .vchip { display: inline-flex; align-items: center; gap: 6px; padding: 2px 9px; border: 1px solid var(--line); border-radius: 999px; background: var(--panel-2); color: var(--muted); font-size: 12px; }
+  .vchip b { color: var(--text); font-weight: 600; }
+  .vchip.up { color: var(--text); border-color: var(--good); background: color-mix(in srgb, var(--good) 14%, var(--panel-2)); }
+  .vchip.later { border-style: dashed; }
+  .vchip.no { opacity: .55; }
+  .ddetail { min-width: 0; overflow: hidden; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; scroll-margin-top: 80px; }
+  .dhead { padding: 12px 14px; background: var(--panel-2); border-bottom: 1px solid var(--line); }
+  .dhead h2 { margin: 0 0 2px; font: 600 18px var(--font-display); color: var(--text); text-wrap: balance; }
+  .boss h3 { display: flex; justify-content: space-between; gap: 10px; margin: 0; padding: 8px 14px; background: var(--panel-3); border-bottom: 1px solid var(--line); color: var(--accent); font: 600 12px var(--font-body); text-transform: uppercase; letter-spacing: .7px; }
+  .boss h3 small { color: var(--muted); font-weight: 400; text-transform: none; letter-spacing: 0; }
+  .ditem { display: flex; flex-direction: column; gap: 4px; padding: 10px 14px; border-bottom: 1px solid var(--line); }
+  .drest { margin: 10px 14px; color: var(--muted); font-size: 12px; }
+  .dlist .drest { margin: 4px 2px; }
+  .dlist .empty { padding: 4px 2px; }
+
+  /* ---- addon ideas ---- */
+  .addons { display: flex; flex-direction: column; gap: 22px; max-width: 1000px; padding-block: 22px 40px; }
+  .addons h2 { margin: 0 0 6px; font: 600 24px var(--font-display); color: var(--accent); text-wrap: balance; }
+  .addons h3 { margin: 0 0 8px; color: var(--muted); font: 600 12px var(--font-body); text-transform: uppercase; letter-spacing: .8px; }
+  .addons p, .addons li { max-width: 68ch; color: var(--stats); }
+  .addons p { margin: 0; }
+  .howto { padding: 12px 14px; background: var(--panel-3); border: 1px solid var(--line); border-radius: 8px; }
+  .idea-groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 16px; align-items: start; }
+  .idea-group { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+  .idea { padding: 10px 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; }
+  .idea h4 { margin: 0 0 4px; color: var(--text); font: 600 15px var(--font-display); }
+  .idea p { font-size: 13px; }
+  .mono { padding: 1px 5px; border-radius: 4px; background: var(--panel-2); color: var(--text); font: 12px ui-monospace, Consolas, "SFMono-Regular", Menlo, monospace; white-space: nowrap; }
+  .steps, .notes ul { display: flex; flex-direction: column; gap: 5px; margin: 0; padding-left: 20px; }
+
+
+  /* ---- equipped gear ---- */
+  .eq { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; padding: 8px 14px; background: var(--panel-3); border-bottom: 1px solid var(--line); font-size: 13px; }
+  .eq .lbl { font-size: 10.5px; }
+  .eq-item { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 2px 6px; min-width: 0; }
+  .eq-item a { font-weight: 600; text-decoration: none; }
+  .eq-item a:hover { text-decoration: underline; }
+  .eq-item .meta { margin-left: 0; }
+  .eq-none { color: var(--muted); font-style: italic; }
+  .score.up { color: var(--good); }
+  .score.down { color: var(--muted); }
+  .lvsrc { height: 26px; padding: 0 9px; border-radius: 999px; border: 1px solid var(--line); background: transparent; color: var(--muted); font: 600 11px var(--font-body); letter-spacing: .4px; cursor: pointer; }
+  .lvsrc:disabled { cursor: default; opacity: .8; }
+  .lvsrc:not(:disabled) { color: var(--accent); border-color: var(--accent); }
+  @media (prefers-reduced-motion: reduce) { .toggle .caret { transition: none; } }
+
+  /* ---- phones ---- */
+  @media (max-width: 760px) {
+    :root { --gutter: 14px; }
+    header { padding-block: 12px; gap: 10px; }
+    h1 { font-size: 20px; }
+    .sub { font-size: 12px; }
+    .switch { width: 100%; }
+    .switch button { flex: 1; padding: 9px 8px; font-size: 14px; }
+    .lab-long { display: none; }
+    .lab-short { display: inline; }
+
+    .bar { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px; padding-block: 10px; }
+    .bar .lbl, input[type=range] { display: none; }
+    .ctl:first-child { flex-wrap: wrap; }
+    .eq { font-size: 13.5px; }
+    .ctl { gap: 6px; }
+    .ctl-slot select { width: 100%; }
+    .level-box button { width: 40px; height: 40px; font-size: 20px; }
+    #level { width: 52px; height: 40px; font-size: 20px; }
+    select, input[type=number] { font-size: 16px; height: 40px; }
+    .bar-right { grid-column: 1 / -1; margin-left: 0; }
+    .toggle { flex: 1; height: 40px; justify-content: space-between; font-size: 14px; }
+    .toggle .sum { max-width: 9.5em; font-size: 12px; }
+
+    .panel { position: fixed; inset: 0; z-index: 30; overflow-y: auto; overscroll-behavior: contain; border-top: 0; background: var(--bg);
+             padding-block: 0 calc(24px + env(safe-area-inset-bottom, 0px)); }
+    .sheet-head { display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 1;
+                  margin-bottom: 12px; padding-block: calc(12px + env(safe-area-inset-top, 0px)) 12px; background: var(--panel); border-bottom: 1px solid var(--line);
+                  margin-left: calc(-1 * max(var(--gutter), env(safe-area-inset-left, 0px))); margin-right: calc(-1 * max(var(--gutter), env(safe-area-inset-right, 0px)));
+                  padding-left: max(var(--gutter), env(safe-area-inset-left, 0px)); padding-right: max(var(--gutter), env(safe-area-inset-right, 0px)); }
+    .sheet-title { font: 600 18px var(--font-display); color: var(--accent); }
+    .done { height: 38px; padding: 0 18px; border-radius: 8px; border: 1px solid var(--accent); background: var(--accent-soft); color: var(--text); font: 600 15px var(--font-body); cursor: pointer; }
+    .groups { grid-template-columns: 1fr; }
+    .chip span { padding: 8px 14px; font-size: 15px; }
+    .preset { padding: 8px 14px; font-size: 15px; }
+    .wrow { font-size: 15px; margin-top: 8px; }
+    .wrow input { width: 96px; }
+    body.sheet-open { overflow: hidden; }
+
+    .dwrap { grid-template-columns: minmax(0, 1fr); padding-block: 12px 32px; }
+    .dlevels { gap: 8px; }
+    .dlevel { width: 100%; }
+    .dname { flex: 1; }
+    .dlevel input { height: 40px; width: 52px; font-size: 18px; }
+    .dlevel .level-box button { width: 40px; height: 40px; font-size: 20px; }
+    .vchip { font-size: 12.5px; padding: 3px 10px; }
+    .tabs a { flex: 1; text-align: center; padding: 11px 6px 10px; }
+    .addons h2 { font-size: 21px; }
+    main { padding-block: 12px 32px; gap: 12px; }
+    li.row { padding: 11px 12px; grid-template-columns: 18px minmax(0, 1fr) auto; }
+    .name a { font-size: 15px; }
+    .meta { display: block; margin-left: 0; margin-top: 1px; }
+    .stats { font-size: 13.5px; }
+    .src { font-size: 13px; }
+    .note { font-size: 12.5px; }
+  }
+</style>
+<!--BODY-->
+<header class="gutter">
+  <div class="head-text">
+    <h1>Forever Gear Planner</h1>
+    <div class="sub"><span id="charSub"></span> · <span id="dataInfo"></span></div>
+  </div>
+  <div class="switch" id="charSwitch" role="group" aria-label="Character"></div>
+</header>
+
+<nav class="tabs gutter" aria-label="Views">
+  <a href="#gear" data-v="gear">Gear</a>
+  <a href="#dungeons" data-v="dungeons">Dungeons</a>
+  <a href="#addons" data-v="addons">Addon ideas</a>
+</nav>
+
+<div id="view-gear">
+<div class="toolbar">
+  <div class="bar gutter">
+    <div class="ctl">
+      <span class="lbl">Level</span>
+      <div class="level-box">
+        <button type="button" id="lvDown" aria-label="Level down">−</button>
+        <input id="level" type="number" min="1" max="60" value="34" inputmode="numeric" aria-label="Character level">
+        <button type="button" id="lvUp" aria-label="Level up">+</button>
+      </div>
+      <button type="button" class="lvsrc" id="lvSrc" hidden>armory</button>
+      <input id="levelRange" type="range" min="1" max="60" value="34" aria-label="Character level slider">
+    </div>
+    <div class="ctl ctl-slot">
+      <label class="lbl" for="slot">Slot</label>
+      <select id="slot"></select>
+    </div>
+    <div class="ctl">
+      <label class="lbl" for="topN">Show</label>
+      <select id="topN" aria-label="How many items per slot"><option value="3">Top 3</option><option value="5" selected>Top 5</option><option value="10">Top 10</option></select>
+    </div>
+    <div class="bar-right">
+      <button type="button" class="toggle" id="btnFilters" aria-expanded="false" aria-controls="panelFilters">Filters <span class="sum" id="filterSum"></span><span class="caret">▼</span></button>
+      <button type="button" class="toggle" id="btnWeights" aria-expanded="false" aria-controls="panelWeights"><span class="lab-long">Stat weights</span><span class="lab-short">Weights</span> <span class="sum" id="weightSum"></span><span class="caret">▼</span></button>
+    </div>
+  </div>
+
+  <div class="panel gutter" id="panelFilters" hidden>
+    <div class="sheet-head"><span class="sheet-title">Filters</span><button type="button" class="done" data-close>Done</button></div>
+    <div class="groups">
+      <fieldset class="group">
+        <legend class="lbl">Sources</legend>
+        <div class="chips" id="srcBox"></div>
+        <p class="hint">Where an item may come from.</p>
+      </fieldset>
+      <fieldset class="group">
+        <legend class="lbl">My professions</legend>
+        <div class="chips" id="profBox"></div>
+        <p class="hint">Unlocks bind-on-pickup crafts and gear that needs the profession to equip. Tradeable crafts always show.</p>
+      </fieldset>
+      <fieldset class="group">
+        <legend class="lbl">Extras</legend>
+        <div class="chips">
+          <label class="chip" id="optOnlyUpBox"><input type="checkbox" id="optOnlyUp"><span>Only upgrades</span></label>
+          <label class="chip"><input type="checkbox" id="optRandom"><span>Random-enchant items</span></label>
+        </div>
+        <p class="hint">Only upgrades: hide items that are not better than what you wear. Random-enchant items are scored on base stats only.</p>
+      </fieldset>
+    </div>
+  </div>
+
+  <div class="panel gutter" id="panelWeights" hidden>
+    <div class="sheet-head"><span class="sheet-title">Stat weights</span><button type="button" class="done" data-close>Done</button></div>
+    <div class="presets" id="presetBox"></div>
+    <div class="groups" id="wgrid"></div>
+    <div class="wnote"><span>Score = sum of stat × weight. Weapons add DPS × weapon-DPS weight plus a bonus per 0.1 s of speed above 3.0. Starting values are estimates, not simulated.</span><button type="button" id="wReset">Reset to preset</button></div>
+  </div>
+</div>
+
+<main id="results" class="gutter"></main>
+
+<footer class="gutter">
+  <p>Level and equipped gear come from the armory (or Blizzard's API) and refresh every hour; the armory updates after you log out. Setting a level by hand lasts until the armory reports a new level. Each character keeps its own level, filters, professions and weights. Shaman: two-handed axes, maces and staves, mail from level 40. Druid: staves, two-handed maces and polearms from level 20, cloth and leather only; in Forever, feral attacks scale with weapon damage. Items show up from the level you can realistically get them: the item's required level; for quest rewards the quest's minimum level, but no earlier than 3 levels below the quest's level.</p>
+  <p>Crafted items that bind on pickup only count for the professions ticked under "My professions"; crafted items that bind on equip always count, since you can buy them or have them made. Items that need a profession to equip follow the same list.</p>
+  <p>Item stats come from Wowhead's WoW Forever tooltips; drop, quest and vendor sources from QuestieDB's Forever database; crafting from the game data. Items Blizzard still hides (not yet discovered) are missing. Special equip effects are listed but not scored.</p>
+</footer>
+</div>
+
+<section id="view-dungeons" hidden>
+  <div class="dbar gutter"><div class="dlevels" id="dLevels"></div></div>
+  <div class="dwrap gutter">
+    <div class="dlist" id="dList"></div>
+    <div class="ddetail" id="dDetail"></div>
+  </div>
+</section>
+
+<section id="view-addons" hidden>
+  <div class="addons gutter">
+    <div>
+      <h2>Hey Matze, here are some addon ideas</h2>
+      <p>This planner knows the item database. The game knows what we actually wear, loot and finish. A small addon of our own could connect the two. Here is what it could do. Tell Pasco what you would use most.</p>
+    </div>
+    <div class="howto">
+      <h3>How game and page would talk</h3>
+      <p>Addons can't go online. The addon shows a short text you copy into this page, or the page gives you a text to paste into the addon. On a PC the page can also load the addon's saved file. Inside a group, our two addons can message each other directly.</p>
+    </div>
+    <div class="idea-groups">
+      <section class="idea-group">
+        <h3>From the game to the page</h3>
+        <article class="idea"><h4>Import your gear</h4><p>Done without an addon: the page now reads level and equipped items from the armory every hour and shows real upgrades over what you wear.</p></article>
+        <article class="idea"><h4>Hide finished quests</h4><p>The game knows every quest you completed. Their rewards drop out of the lists, and a quest checklist fills itself. Fits the quest-sync addon idea.</p></article>
+        <article class="idea"><h4>Fill the data gaps</h4><p>The game shows stats for items Wowhead hasn't revealed yet. The addon notes what we see, with boss or quest, and hands it to the page.</p></article>
+      </section>
+      <section class="idea-group">
+        <h3>From the page into the game</h3>
+        <article class="idea"><h4>Upgrade line in tooltips</h4><p>Every item tooltip shows what it is worth for each of us, like <span class="mono">Shaman +4.2 · Druid +6.1</span>. Works for loot, vendors, the auction house and quest rewards.</p></article>
+        <article class="idea"><h4>Quest reward pick</h4><p>When a quest offers a choice, the addon marks the best reward for your character.</p></article>
+        <article class="idea"><h4>Dungeon cheat sheet</h4><p>When you enter a dungeon, a small window lists which boss drops an upgrade for whom, taken from the dungeon planner.</p></article>
+      </section>
+      <section class="idea-group">
+        <h3>Between the two of us</h3>
+        <article class="idea"><h4>Loot call</h4><p>In a group, both addons share gear and weights. When something drops, both of us see who gains more, like <span class="mono">Druid +8.0 · Shaman +1.5</span>.</p></article>
+      </section>
+    </div>
+    <div>
+      <h3>Suggested order</h3>
+      <ol class="steps">
+        <li><b>Dungeon planner</b> on this page: done.</li>
+        <li><b>Real gear from the armory</b>, refreshed every hour: done.</li>
+        <li><b>Addon, part 1:</b> upgrade line in tooltips and the quest reward pick.</li>
+        <li><b>Addon, part 2:</b> loot call in groups.</li>
+      </ol>
+    </div>
+    <div class="notes">
+      <h3>Good to know</h3>
+      <ul>
+        <li>Similar Forever addons exist, for example Pro Item Forever and WhoNeedsThis. Ours would compare the two of us, with our own weights.</li>
+        <li>Claude writes the addon and we test it in game, so expect one or two rounds of fixes.</li>
+        <li>Export and import happen on the PC. On the phone you only view the page.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<script>
+/*__GEAR_DATA__*/
+</script>
+<script>
+/*__APP_JS__*/
+</script>
+<!--LOCAL_ONLY-->

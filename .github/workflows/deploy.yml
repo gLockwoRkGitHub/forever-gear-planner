@@ -1,0 +1,81 @@
+name: Build and deploy
+
+# Hourly: fetch level and equipped gear of both characters, build the planner,
+# encrypt it with the page password and publish it on GitHub Pages.
+on:
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Restore gear cache (last good result, item tooltips)
+        uses: actions/cache@v4
+        with:
+          path: .cache/gear
+          key: gear-${{ github.run_id }}
+          restore-keys: gear-
+
+      - name: Fetch levels and equipped gear
+        env:
+          BLIZZARD_CLIENT_ID: ${{ secrets.BLIZZARD_CLIENT_ID }}
+          BLIZZARD_CLIENT_SECRET: ${{ secrets.BLIZZARD_CLIENT_SECRET }}
+        run: python scripts/fetch_gear.py
+
+      - name: Build page
+        run: python scripts/build_site.py
+
+      - name: Encrypt with the page password
+        env:
+          PAGE_PASSWORD: ${{ secrets.PAGE_PASSWORD }}
+        run: |
+          if [ -z "$PAGE_PASSWORD" ]; then
+            echo "::error::Repository secret PAGE_PASSWORD is missing (Settings > Secrets and variables > Actions)."
+            exit 1
+          fi
+          npx --yes staticrypt@3.5.4 build/index.html -p "$PAGE_PASSWORD" --short -d _site --remember 30 \
+            --template-title "Forever Gear Planner" \
+            --template-instructions "Enter the password to open the planner." \
+            --template-button "Open" \
+            --template-placeholder "Password" \
+            --template-remember "Remember me on this device" \
+            --template-color-primary "#d9a441" \
+            --template-color-secondary "#14161a"
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

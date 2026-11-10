@@ -1,0 +1,80 @@
+{
+  "_source": "wowtbc.gg/warcraftforever/loot-tables (fetched 2026-11-10). Only Horde/neutral quest rewards kept.",
+  "The Hall of Thanes": {
+    "Faldrim Anvilmar": ["Ephemeral Choker", "Aetherwisp Bracers", "Spiritwraith Drape"],
+    "Magmatus": ["Kindlegem Girdle", "Flamefist Grips", "Fang of Magmatus"],
+    "Plunder": ["Golemheart Stave", "Treads of the Protector Golem", "Golemguard Chest"],
+    "Durgen Dirgehammer": ["Durgen's Crescent Axe", "Direhammer Leggings", "Robes of the Disgraced Thane"],
+    "quest:An Ancient Grudge": ["Catacomb Cloak", "Deepgrave Trousers"],
+    "quest:Old Ironforge Incursion": ["Calibrated Blunderbuss", "Ironforge Greathammer", "Deepblaze"],
+    "quest:The Restless Dead": ["Dusty Belt", "Cryptwalker Bracers"]
+  },
+  "Ruins of Lordaeron": {
+    "The Baron": ["Meathook Slicer", "Abomination Bones", "Leftover Abomination Skin"],
+    "Witherfang": ["Atrophic Girdle", "Witherbite Bracers", "Segmented Spider Leg"],
+    "The Abandoned": ["Rotmender's Leggings", "Grip of Fear", "Scepter of the Abandoned"],
+    "Bjork": ["Bonerust Leggings", "Tuskwrap Belt", "Corpse Chopper"],
+    "Rath'mael": ["Mirror of Rath'mael", "Rotmender's Treads", "Coldspire Staff"],
+    "Deathsworn Captain": ["Haunting Blade", "Phantom Armor"],
+    "Viktor the Vile": ["Vilewalkers", "Bloodied Chestwraps", "Vileblood Scimitar"],
+    "trash": ["Sword of the Fallen", "Rotmender's Garb", "Rotmender's Gloves", "Rotmender's Sash", "Death Bindings"],
+    "quest:The Wrath of Rath'mael": ["Forsaken Greataxe", "Gnarled Necromancer's Staff"],
+    "quest:A Frightened Request": ["Edward's Knife", "Tabitha's Cuffs"],
+    "quest:Light's Justice": ["The Stitcher", "Spare Part Bindings"],
+    "quest:Unending Torment": ["Monstrous Cleaver", "Grave Shroud", "Slain Baron's Signet"],
+    "quest:The New Plague": ["Plaguefang", "Blight Gloves"]
+  },
+  "Excavation Site: Wetlands": {
+    "Saltspine": ["Supple Bellyskin Leggings", "Saltscale Girdle", "Glinteye Slippers"],
+    "Shadetooth": ["Raptorclaw Greaves", "Garb of Florid Feathers", "Raptor's Gaze"],
+    "Relic Guardian": ["Reliquary Mantle", "Golemsight Long Gun", "Ring of Power Regulation"],
+    "quest:Fallen in the Fen": ["Songblade Stabilizer", "Daewyn's Girdle"],
+    "quest:Changing Tastes": ["Satchel of Potions", "Serrated Raptor Claw"],
+    "quest:Open the Maw": ["Dirt-Heavy Bracers", "Knife-Polishing Rag"],
+    "quest:Earthen Echo": ["Furs of the Earthen Ring", "Heavehammer", "Healer's Staff"]
+  },
+  "City of Dalaran": {
+    "Atrexis the Grave Knight": ["Bonebinder's Signet", "Gravespike Repeater", "Graveweave Bindings"],
+    "Arcane Anomaly": ["Runemender's Seal", "Ephemeral Grips", "Mana-Warped Chain Shirt"],
+    "Arcanic Enigma": ["Wand of Mana Concentration", "Violet Sorcerer's Robes", "Drape of Shifting Energy"],
+    "Unstable Sentinel": ["Guardian's Dualblade", "Unstable Crystalline Shoulderpads", "Refractory Scaleguards"],
+    "Mana Devourer": ["Spine of the Devourer", "Slitherwrap Girdle", "Manascale Treads"],
+    "Fel Ancient": ["Felbough Arm", "Garb of Fallen Felbark", "Blightleaf Rope"],
+    "Lyn the Ignored": ["Tendonscraper Dagger", "Cartilage Shapers", "Bonepile Gaze"],
+    "Shade of the Archmage": ["Archmagister's Faceted Pendant", "Violet Sorcerer's Mantle", "Ponderous Orb"],
+    "quest:Opportunistic Education": ["Solid Gold Band", "Larcenist's Belt"],
+    "quest:Heart of Disruption": ["Battle Spaulders", "Enchanted Sandals", "Striking Staff"],
+    "quest:The Grave Knight": ["Gravewalker Boots", "Undead Knight's Bracers"],
+    "quest:Source of Power": ["Unstable Power Core", "Construct Cloak"]
+  },
+  "The Drowned City": {
+    "Zul'Alai": ["Bloodslash Axe", "Oathbound Bracers", "Berserker Shackles"],
+    "Gill": ["Gill's Gills", "Tidebound Dagger"],
+    "Captain Dreadrise": ["Dreadfrost Saber", "Frosty Blunderbuss", "Briny Sash"],
+    "Primeval Elemental": ["Robe of the Drowned", "Waterlogged Burial Shroud", "Heart of the Primeval"],
+    "Var'Taka": ["Harpoon of Command", "Brinebelly Leggings", "Priestess Cloak"],
+    "Deathless Marrow": ["Knucklebone Ring"],
+    "Min'loth the Serpent": ["Maw of Min'loth", "Serpentbane Crown"],
+    "quest:The Only Good Brinescale...": ["Tidesoaked Leggings", "Naga Priestess's Mantle"]
+  },
+  "Krol'dok Stronghold": {
+    "Slavecrusher Grox": ["Resistance Breaker Spaulder"],
+    "Twilight Commander Zarmok": ["Shadowlight Athame"],
+    "Bossman Toof": ["Big-Belly Belt"],
+    "Nar'gurk": ["Chain of the Corruptor"],
+    "Overlord Mugg": ["Emblem of Slamming"],
+    "quest:(dungeon quest)": ["Eye of Mugg", "Tome of Twilight", "A Token of Vengeance"]
+  },
+  "Alcaz Prison": {
+    "Tidemistress Ca'zass": ["Cloak of the Tidemistress"],
+    "Overseer Wrex": ["Wrex's Pinky Ring"],
+    "Katerina the Cleaner": ["Sentimental Locket"],
+    "The Questioner": ["Girdle of Extracted Answers"]
+  },
+  "Blackmaw Hold": {
+    "Withermaw": ["Cloak of the Fleshborer"],
+    "Bonesnout the Unbroken": ["Tuskblade Halberd"],
+    "Blackmaw Behemoth": ["Behemoth Bones"],
+    "Varrox Bleakhoof": ["Bleak Eye Shoulderplates"]
+  }
+}
