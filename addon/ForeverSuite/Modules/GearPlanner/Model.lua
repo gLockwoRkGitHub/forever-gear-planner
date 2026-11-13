@@ -4,7 +4,7 @@
 -- point of each stat, counted in Strength points. Keep both files in step (addon/tests/parity.js checks it).
 --
 -- Talents arrive as numbers (from the website import or the game's talent tooltips):
---   flurry, elemW, impSS, thunder, md, ak, hit, bloodFrenzy, predStrikes, sharpClaws, lotp  (percent values)
+--   flurry, elemW, impSS, impWT, thunder, md, ak, hit, bloodFrenzy, predStrikes, sharpClaws, lotp  (percent values)
 --   storm, shiftingPower                                                             (1 if learned)
 local _, FS = ...
 local M = {}
@@ -43,13 +43,21 @@ local function uses(T, start, cd)
   return 1 + (T - start - cd > 0 and (T - start - cd) / cd or 0)
 end
 local CAL = { stormstrike = 1.06 }
+-- Stormstrike from the game data (the data build applies the hotfix of 10 Nov 2026: 100%, 8 sec)
+local function stormstrike()
+  local r = (mech().stormstrike or {})[1] or {}
+  return r.pct or 100, r.cd or 8, r.nature or 20
+end
 
 -- --- Enhancement Shaman: damage dealt in the first T seconds of a fight ------------------------
--- Calibrated with Koda's combat log (level 33): Earth Shock does not grow with level, Stormstrike hits
--- about 6% harder than 150% weapon damage, Improved Stormstrike resets on dodge/parry.
+-- Calibrated with Koda's combat log (level 33, before the hotfix of 10 Nov 2026): Earth Shock does not grow
+-- with level, Stormstrike hit about 6% harder than its weapon damage, Improved Stormstrike resets on
+-- dodge/parry. Since the hotfix, Windfury Weapon and Windfury Totem both roll on every hit; the totem is
+-- assumed to be down for every fight once learned.
 local function shamanParts(L, s, tal, w, T)
   local flurry, elemW, storm = T_(tal, "flurry") / 100, T_(tal, "elemW") / 100, T_(tal, "storm") > 0
-  local resetPct = T_(tal, "impSS") / 100
+  local resetPct, impWT = T_(tal, "impSS") / 100, T_(tal, "impWT") / 100
+  local ssPct, ssCd, ssNature = stormstrike()
   local t = avoidance(s.hit)
   local crit = min(1, s.crit / 100)
   local speed = w.speed or 2
@@ -61,29 +69,33 @@ local function shamanParts(L, s, tal, w, T)
   local flurryUp = flurry > 0 and (1 - (1 - whiteCrit) ^ 3) or 0
   local phys = M.physMult(L)
   local swings = T / (speed / (1 + flurry * flurryUp))
-  local ssUses = storm and uses(T, 0, 6) or 0                           -- Stormstrike opens, 6 sec cooldown
+  local ssUses = storm and uses(T, 0, ssCd) or 0                        -- Stormstrike opens, then on cooldown
   if storm and resetPct > 0 then                                        -- Improved Stormstrike: reset on dodge/parry
     local avoid = ((s.dodge or 0) + (s.parry or 0)) / 100
-    ssUses = ssUses + resetPct * avoid * (T / 2) * min(1, T / 6)        -- mob swings every ~2 sec
+    ssUses = ssUses + resetPct * avoid * (T / 2) * min(1, T / ssCd)     -- mob swings every ~2 sec
   end
   local esr = rankAt(mech().earthShock, L)
   local esUses = esr and uses(T, 1.5, 6) or 0                           -- after the global cooldown
   local white = swings * swing * whiteMult * phys
-  local ss = ssUses * 1.5 * swing * CAL.stormstrike * yellowMult * phys
-  local wf = 0
+  local ss = ssUses * ssPct / 100 * swing * CAL.stormstrike * yellowMult * phys
+  local procs = 0.2 * t.land * (swings + ssUses)                        -- 20% per landed hit, each effect rolls
+  local function extra(bonusAp) return (wAvg + (s.ap + bonusAp) / 14 * speed) * whiteMult * phys end
+  local wf, wft = 0, 0
   local wfr = L >= 30 and rankAt(mech().windfury, L) or nil
   if wfr then
-    local bonusAp = scaled(wfr.ap, wfr.perLevel, wfr.lv, wfr.max, L) * (1 + elemW)
-    local procs = 0.2 * t.land * (swings + ssUses)                      -- 20% per landed hit
-    wf = procs * (wfr.attacks or 1) * (wAvg + (s.ap + bonusAp) / 14 * speed) * whiteMult * phys
+    wf = procs * (wfr.attacks or 1) * extra(scaled(wfr.ap, wfr.perLevel, wfr.lv, wfr.max, L) * (1 + elemW))
+  end
+  local wtr = rankAt(mech().windfuryTotem, L)
+  if wtr then
+    wft = procs * (wtr.attacks or 1) * extra(scaled(wtr.ap, wtr.perLevel, wtr.lv, wtr.max, L) * (1 + impWT))
   end
   local es = 0
   if esr then
     local dmg = esr.base * 1.04 + (esr.coef or 0) * (s.sp or 0)         -- no level scaling (combat log)
     local spellCrit = min(1, (s.spellCrit or 0) / 100)
-    es = esUses * dmg * (storm and 1.2 or 1) * 0.96 * (1 + 0.5 * spellCrit)
+    es = esUses * dmg * (storm and (1 + ssNature / 100) or 1) * 0.96 * (1 + 0.5 * spellCrit)
   end
-  return { { "Auto attacks", white }, { "Windfury", wf }, { "Stormstrike", ss }, { "Earth Shock", es } }
+  return { { "Auto attacks", white }, { "Windfury", wf }, { "Windfury Totem", wft }, { "Stormstrike", ss }, { "Earth Shock", es } }
 end
 
 -- --- Feral Druid, Cat Form: damage in the first T seconds ----------------------------------------
@@ -242,14 +254,21 @@ function M.weights(ctx)
 end
 
 -- --- talents from their tooltip text (English client), same rules as model.js -----------------
--- talents: list of { n = name, d = description }
+-- talents: list of { n = name, d = description, r = rank }
 function M.talentNumbers(talents)
-  local byName = {}
-  for _, t in ipairs(talents or {}) do byName[t.n] = t.d or "" end
+  local byName, rankOf = {}, {}
+  for _, t in ipairs(talents or {}) do byName[t.n] = t.d or ""; rankOf[t.n] = tonumber(t.r) end
   local function num(name, pat)
     local d = byName[name]
     local v = d and d:match(pat)
     return v and tonumber(v) or 0
+  end
+  -- Mental Dexterity: from the rank (hotfix values in the game data build), else from the tooltip text
+  local function mentalDexterity()
+    if not byName["Mental Dexterity"] then return 0 end
+    local table_, r = mech().mentalDexterity or { 33, 66, 100 }, rankOf["Mental Dexterity"]
+    if r and table_[r] then return table_[r] end
+    return num("Mental Dexterity", "equal to (%d+)%%")
   end
   local hit = 0
   for _, t in ipairs(talents or {}) do
@@ -262,7 +281,8 @@ function M.talentNumbers(talents)
     impSS = num("Improved Stormstrike", "(%d+)%% chance to reset"),
     storm = byName["Stormstrike"] and 1 or 0,
     thunder = num("Thundering Strikes", "by (%d+)%%"),
-    md = num("Mental Dexterity", "equal to (%d+)%%"),
+    md = mentalDexterity(),
+    impWT = num("Improved Weapon Totems", "Windfury Totem by (%d+)%%"),
     ak = num("Ancestral Knowledge", "Intellect by (%d+)%%"),
     hit = hit,
     bloodFrenzy = num("Blood Frenzy", "Combo Points have a (%d+)%% chance"),

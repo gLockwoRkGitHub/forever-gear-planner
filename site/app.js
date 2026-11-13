@@ -280,7 +280,7 @@
       .filter(([, v]) => v > 0.001).map(([k, v]) => k + " = " + f(v) + " Str");
     box.appendChild(el("p", "", "Weights = how much faster you kill, counted in Strength points. " + facts.join(" · ") + ". Two-handers are valued by computing their damage and speed directly."));
     const assume = state.profile === "shaman"
-      ? "Each fight starts with Stormstrike, then Earth Shock, both again after 6 sec; Improved Stormstrike resets on your dodges and parries; Windfury from level 30. Mob one level below you, fought from the front (5% miss, dodge and parry). Calibrated with Koda's combat log: about 10% armor reduction, Earth Shock without level scaling, Stormstrike 6% above 150% weapon damage. Mana, downtime and buffs are not counted."
+      ? "Each fight starts with Stormstrike (100% weapon damage, again after 8 sec), then Earth Shock (every 6 sec); Improved Stormstrike resets on your dodges and parries. Windfury Weapon from level 30 and Windfury Totem from level 32, both rolling on every hit (since the hotfix of 10 Nov; the totem is assumed to be down in every fight). Mental Dexterity turns 33/66/100% of Intellect into attack power. Mob one level below you, fought from the front (5% miss, dodge and parry). Calibrated with Koda's combat log from before the hotfix: about 10% armor reduction, Earth Shock without level scaling. Mana, downtime and buffs are not counted."
       : "Each fight starts with 100 energy: Rake, Claw to build combo points, Ferocious Bite at 5; 10 energy per second. Mob one level below you, fought from the front (so Claw, not Shred). The cat's auto attack is assumed to do the weapon's damage per second (Forever scales feral attacks with the weapon) - to be checked with a combat log. No buffs.";
     box.appendChild(el("p", "mnote", assume + " Talents and character sheet come from Blizzard; ability ranks and mob health from the game data."));
     return box;
@@ -1126,7 +1126,9 @@
     return {
       flurry: num("Flurry", /by (\d+(?:\.\d+)?)%/), elemW: num("Elemental Weapons", /Windfury Weapon effect by (\d+)%/),
       impSS: num("Improved Stormstrike", /(\d+)% chance to reset/),
-      storm: has("Stormstrike") ? 1 : 0, thunder: num("Thundering Strikes", /by (\d+)%/), md: num("Mental Dexterity", /equal to (\d+)%/),
+      storm: has("Stormstrike") ? 1 : 0, thunder: num("Thundering Strikes", /by (\d+)%/),
+      md: window.LevelModel ? window.LevelModel.mentalDexterity(t) : num("Mental Dexterity", /equal to (\d+)%/),
+      impWT: num("Improved Weapon Totems", /Windfury Totem by (\d+)%/),
       ak: num("Ancestral Knowledge", /Intellect by (\d+)%/), hit, bloodFrenzy: num("Blood Frenzy", /Combo Points have a (\d+)% chance/),
       shiftingPower: has("Shifting Power") ? 1 : 0, predStrikes: num("Predatory Strikes", /by (\d+)% of your level/),
       sharpClaws: num("Sharpened Claws", /by (\d+)%/), lotp: num("Leader of the Pack", /by (\d+)%/)

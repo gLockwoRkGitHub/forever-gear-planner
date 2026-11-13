@@ -46,9 +46,15 @@ cat with full energy). Inputs: talents and character sheet (Blizzard API) and th
 data (`data/mechanics.json`, built by `scripts/extract_mechanics.py`). Each weight is the extra kill speed of
 one point of a stat, counted in Strength points; two-handers are valued by their damage and speed directly.
 
-- Shaman: Stormstrike opens, Earth Shock after the global cooldown, both again after 6 sec, Improved
-  Stormstrike resets, auto attacks with Flurry, Windfury from 30. Calibrated with a combat log (10 Nov 2026):
-  ~10% armor reduction, Earth Shock without level scaling, Stormstrike ~6% above 150% weapon damage.
+- Shaman: Stormstrike opens (100% weapon damage, 8 sec cooldown), Earth Shock after the global cooldown and
+  every 6 sec, Improved Stormstrike resets, auto attacks with Flurry. Windfury Weapon from 30 and Windfury Totem
+  from 32 roll on every hit (the totem is assumed to be down in every fight); Mental Dexterity turns 33/66/100%
+  of Intellect into attack power by rank. Calibrated with a combat log (10 Nov 2026, before that day's hotfix):
+  ~10% armor reduction, Earth Shock without level scaling, Stormstrike ~6% above its weapon damage.
+- Hotfixes the game tables on wago.tools do not show yet are applied in `scripts/extract_mechanics.py`
+  (`HOTFIXES`, `MENTAL_DEXTERITY`): currently Blizzard's hotfix of 10 Nov 2026 (Stormstrike 150% → 100%,
+  6 → 8 sec; Mental Dexterity 50/100/150% → 33/66/100%; Windfury Weapon and Windfury Totem together). The
+  Blizzard API's talent tooltips still show the old Mental Dexterity values, so the model goes by the rank.
 - Druid (Cat Form, from 20): 100 energy at the start plus 10 per second, Rake, Claw, Ferocious Bite at 5 combo
   points; the cat's auto attack is assumed to do the weapon's damage per second (not yet checked with a log).
 - Not modelled: mana, downtime, buffs, special item effects.

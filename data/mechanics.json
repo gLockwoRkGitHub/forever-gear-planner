@@ -357,5 +357,45 @@
   "61": 3395,
   "62": 4370,
   "63": 7661
- }
+ },
+ "windfuryTotem": [
+  {
+   "lv": 32,
+   "max": 40,
+   "id": 8516,
+   "ap": 95.0,
+   "perLevel": 0.0,
+   "attacks": 1
+  },
+  {
+   "lv": 42,
+   "max": 50,
+   "id": 10608,
+   "ap": 179.0,
+   "perLevel": 0.0,
+   "attacks": 1
+  },
+  {
+   "lv": 52,
+   "max": 60,
+   "id": 10610,
+   "ap": 246.0,
+   "perLevel": 0.0,
+   "attacks": 1
+  }
+ ],
+ "stormstrike": [
+  {
+   "lv": 40,
+   "id": 17364,
+   "pct": 100.0,
+   "cd": 8.0,
+   "nature": 20.0
+  }
+ ],
+ "mentalDexterity": [
+  33,
+  66,
+  100
+ ]
 }

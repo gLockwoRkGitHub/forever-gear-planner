@@ -3,13 +3,17 @@
 // starts with all cooldowns ready (and a cat with full energy). Stat weights are the extra kill speed from one
 // more point of a stat, counted in Strength points. Analytic (expected values, no dice), so it is instant.
 //
-// Calibrated with Koda's combat log (10 Nov 2026, level 33 vs Daggerspine Sirens, level 31–32):
+// Calibrated with Koda's combat log (10 Nov 2026, level 33 vs Daggerspine Sirens, level 31–32, before that day's hotfix):
 //   melee, Windfury and Stormstrike lose about 10% to armor; Earth Shock does not grow with level
-//   (131–140, x1.2 after Stormstrike); Stormstrike hits about 6% harder than 150% weapon damage.
+//   (131–140, x1.2 after Stormstrike); Stormstrike hit about 6% harder than its weapon damage.
+// Hotfix 10 Nov 2026: Stormstrike 100% weapon damage and 8 sec cooldown (was 150%, 6 sec); Mental Dexterity
+// 33/66/100% of Intellect (was 50/100/150%); Windfury Weapon and Windfury Totem both proc on the same attacks.
+// The values come from data/mechanics.json (scripts/extract_mechanics.py applies the hotfix to the game tables).
 window.LevelModel = (function () {
   "use strict";
   const MECH = window.MECH || {};
   const CAL = { stormstrike: 1.06 };
+  const SS = Object.assign({ pct: 100, cd: 8, nature: 20 }, (MECH.stormstrike || [])[0] || {});
 
   // --- helpers ----------------------------------------------------------------------------
   function talent(talents, name) { return (talents || []).find((t) => t.n === name) || null; }
@@ -22,6 +26,15 @@ window.LevelModel = (function () {
     return (talents || []).reduce((s, t) => { const m = /chance to hit by (\d+(?:\.\d+)?)%/i.exec(t.d || ""); return s + (m ? +m[1] : 0); }, 0);
   }
   function rankAt(list, L) { let r = null; (list || []).forEach((x) => { if (x.lv <= L) r = x; }); return r; }
+  // Mental Dexterity in % of Intellect: from the talent rank (hotfix values), else from its tooltip text
+  function mentalDexterity(tal) {
+    const t = talent(tal, "Mental Dexterity");
+    if (!t) return 0;
+    const table = MECH.mentalDexterity || [33, 66, 100], r = +t.r || 0;
+    if (r >= 1 && r <= table.length) return table[r - 1];
+    const m = /equal to (\d+)%/.exec(t.d || "");
+    return m ? +m[1] : 0;
+  }
   function scaled(base, perLevel, lv, max, L) { return base + (perLevel || 0) * Math.max(0, Math.min(L, max || L) - lv); }
   // Questing mobs are usually a level below you.
   function mobLevel(L) { return Math.max(1, L - 1); }
@@ -43,9 +56,11 @@ window.LevelModel = (function () {
 
   // --- Enhancement Shaman: damage dealt in the first T seconds of a fight ---------------------
   // Stats: ap, crit (%), hit (%), sp, spellCrit (%), dodge/parry (%); weapon {min, max, speed}.
+  // Windfury Totem is assumed to be down for every fight once learned; it procs alongside Windfury Weapon.
   function shamanParts(L, s, tal, w, T) {
     const flurry = tnum(tal, "Flurry", /by (\d+(?:\.\d+)?)%/) / 100;
     const elemW = tnum(tal, "Elemental Weapons", /Windfury Weapon effect by (\d+)%/) / 100;
+    const impWT = tnum(tal, "Improved Weapon Totems", /Windfury Totem by (\d+)%/) / 100;
     const storm = !!talent(tal, "Stormstrike");
     const resetPct = tnum(tal, "Improved Stormstrike", /(\d+)% chance to reset/) / 100;
     const t = avoidance(s.hit);
@@ -58,25 +73,31 @@ window.LevelModel = (function () {
     const flurryUp = flurry ? 1 - Math.pow(1 - whiteCrit, 3) : 0;
     const phys = physMult(L);
     const swings = T / (speed / (1 + flurry * flurryUp));                 // log: about 1.8 swings per 6 sec fight
-    let ssUses = storm ? uses(T, 0, 6) : 0;                               // Stormstrike opens, 6 sec cooldown
+    let ssUses = storm ? uses(T, 0, SS.cd) : 0;                           // Stormstrike opens, then on cooldown
     if (storm && resetPct) {                                              // Improved Stormstrike: reset on dodge/parry
       const avoid = ((s.dodge || 0) + (s.parry || 0)) / 100;
-      ssUses += resetPct * avoid * (T / 2) * Math.min(1, T / 6);          // mob swings every ~2 sec
+      ssUses += resetPct * avoid * (T / 2) * Math.min(1, T / SS.cd);      // mob swings every ~2 sec
     }
     const esr = rankAt(MECH.earthShock, L);
     const esUses = esr ? uses(T, 1.5, 6) : 0;                             // after the global cooldown
-    const out = { "Auto attacks": swings * swing * whiteMult * phys, "Windfury": 0, "Stormstrike": 0, "Earth Shock": 0 };
-    out.Stormstrike = ssUses * 1.5 * swing * CAL.stormstrike * yellowMult * phys;
+    const out = { "Auto attacks": swings * swing * whiteMult * phys, "Windfury": 0, "Windfury Totem": 0, "Stormstrike": 0, "Earth Shock": 0 };
+    out.Stormstrike = ssUses * SS.pct / 100 * swing * CAL.stormstrike * yellowMult * phys;
+    const procs = 0.2 * t.land * (swings + ssUses);                       // 20% per landed hit, each effect rolls
+    const extra = (bonusAp) => (wAvg + (s.ap + bonusAp) / 14 * speed) * whiteMult * phys;
     const wfr = L >= 30 ? rankAt(MECH.windfury, L) : null;
     if (wfr) {
       const bonusAp = scaled(wfr.ap, wfr.perLevel, wfr.lv, wfr.max, L) * (1 + elemW);
-      const procs = 0.2 * t.land * (swings + ssUses);                     // 20% per landed hit
-      out.Windfury = procs * (wfr.attacks || 1) * (wAvg + (s.ap + bonusAp) / 14 * speed) * whiteMult * phys;
+      out.Windfury = procs * (wfr.attacks || 1) * extra(bonusAp);
+    }
+    const wft = rankAt(MECH.windfuryTotem, L);
+    if (wft) {
+      const bonusAp = scaled(wft.ap, wft.perLevel, wft.lv, wft.max, L) * (1 + impWT);
+      out["Windfury Totem"] = procs * (wft.attacks || 1) * extra(bonusAp);
     }
     if (esr) {
       const dmg = esr.base * 1.04 + (esr.coef || 0) * (s.sp || 0);        // no level scaling (combat log)
       const spellCrit = Math.min(1, (s.spellCrit || 0) / 100);
-      out["Earth Shock"] = esUses * dmg * (storm ? 1.2 : 1) * 0.96 * (1 + 0.5 * spellCrit);
+      out["Earth Shock"] = esUses * dmg * (storm ? 1 + SS.nature / 100 : 1) * 0.96 * (1 + 0.5 * spellCrit);
     }
     return out;
   }
@@ -161,7 +182,7 @@ window.LevelModel = (function () {
     if (!isFinite(agiPerCrit) || agiPerCrit < 4 || agiPerCrit > 60) agiPerCrit = 20 * curLevel / 60;
     agiPerCrit *= level / curLevel;                                            // the ratio grows with level
     return { key, kind, level, s, tal, w: weaponOf(gear), agiPerCrit,
-      md: tnum(tal, "Mental Dexterity", /equal to (\d+)%/) / 100, ak: tnum(tal, "Ancestral Knowledge", /Intellect by (\d+)%/) / 100 };
+      md: mentalDexterity(tal) / 100, ak: tnum(tal, "Ancestral Knowledge", /Intellect by (\d+)%/) / 100 };
   }
 
   // Character stats after adding item stats `d` (str, agi, int, ap, feralAp, crit, hit, sp, natureSp).
@@ -204,5 +225,5 @@ window.LevelModel = (function () {
     };
   }
 
-  return { context, weights, mobArmor, physMult, mobHp, mobLevel };
+  return { context, weights, mobArmor, physMult, mobHp, mobLevel, mentalDexterity };
 })();

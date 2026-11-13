@@ -1,7 +1,7 @@
 """Rank tables of the abilities the level model uses, read from the WoW Forever game tables.
 
 Usage: python scripts/extract_mechanics.py <build_dir> <out_json>
-  build_dir holds SpellName.csv, SpellLevels.csv, SpellEffect.csv, SpellPower.csv (wago.tools).
+  build_dir holds SpellName.csv, SpellLevels.csv, SpellEffect.csv, SpellPower.csv, SpellCooldowns.csv (wago.tools).
 
 Per rank: learn level (lv), level up to which the values still grow (max), and the numbers the model needs.
 Damage of a rank at character level L = base + perLevel * (min(L, max) - lv).
@@ -38,6 +38,16 @@ effects = defaultdict(dict)
 for r in rows("SpellEffect"):
     if r["DifficultyID"] == "0":
         effects[int(r["SpellID"])][int(r["EffectIndex"])] = r
+cooldowns = {}
+if (DL / "SpellCooldowns.csv").exists():
+    cooldowns = {int(r["SpellID"]): r for r in rows("SpellCooldowns") if r["DifficultyID"] == "0"}
+
+# Server hotfixes the game tables on wago.tools do not show yet. Each applies only while the table still has
+# the value from before the hotfix, so a later change in the game data wins.
+# 10 Nov 2026 (Blizzard, "WoW: Forever Hotfixes"): Stormstrike 100% weapon damage (was 150%), 8 sec cooldown
+# (was 6); Mental Dexterity converts 33/66/100% of Intellect (was 50/100/150%), not readable from the tables.
+HOTFIXES = {"stormstrike": {"pct": (150, 100), "cd": (6, 8)}}
+MENTAL_DEXTERITY = [33, 66, 100]
 
 
 def ranks(name, power_type=None, need=lambda e: True):
@@ -84,6 +94,31 @@ mech["windfury"] = [
     for lv, mx, sid, eff, _ in ranks("Windfury Weapon", None, lambda f: eff_of(f, 6, 99) is not None)
     for e, x in [(eff_of(eff, 6, 99), eff_of(eff, 19))]]
 
+# Windfury Totem: the weapon enchant it puts on party members (one extra attack with bonus attack power).
+# Since the hotfix of 10 Nov 2026 it works together with the shaman's own Windfury Weapon.
+mech["windfuryTotem"] = [
+    {"lv": lv, "max": mx, "id": sid, "ap": num(e["EffectBasePointsF"]), "perLevel": num(e["EffectRealPointsPerLevel"]),
+     "attacks": int(num(x["EffectBasePointsF"])) if x else 1}
+    for lv, mx, sid, eff, _ in ranks("Windfury Totem", None, lambda f: eff_of(f, 6, 99) is not None and eff_of(f, 19) is not None)
+    for e, x in [(eff_of(eff, 6, 99), eff_of(eff, 19))]]
+
+# Stormstrike: weapon damage (%), cooldown (sec), bonus to the next Nature spells (%)
+ss = []
+for lv, mx, sid, eff, _ in ranks("Stormstrike", None, lambda f: eff_of(f, 31) is not None):
+    cd = cooldowns.get(sid)
+    ss.append({"lv": lv, "id": sid, "pct": num(eff_of(eff, 31)["EffectBasePointsF"]),
+               "cd": num(cd["RecoveryTime"]) / 1000 if cd and num(cd["RecoveryTime"]) else 6.0,
+               "nature": num(eff_of(eff, 6, 271)["EffectBasePointsF"]) if eff_of(eff, 6, 271) else 20.0})
+for r in ss:
+    for k, (before, after) in HOTFIXES["stormstrike"].items():
+        if r[k] == before:
+            print(f"hotfix: Stormstrike {k} {before} -> {after} (game tables not updated yet)")
+            r[k] = float(after)
+        elif r[k] != after:
+            print(f"note: Stormstrike {k} is {r[k]} in the game tables (hotfix said {after}); using the tables")
+mech["stormstrike"] = ss
+mech["mentalDexterity"] = MENTAL_DEXTERITY
+
 # --- Druid (Cat Form) ---------------------------------------------------------------------
 ENERGY = 3
 
@@ -126,9 +161,9 @@ if qfile.exists():
     mech["mobHp"] = {str(lv): round(statistics.median(v)) for lv, v in sorted(by_level.items()) if len(v) >= 5}
 
 for k, v in mech.items():
-    if isinstance(v, list):
+    if isinstance(v, list) and v and isinstance(v[0], dict):
         print(f"{k}: {len(v)} ranks, levels {[r['lv'] for r in v]}")
     else:
-        print(f"{k}: {len(v)} levels")
+        print(f"{k}: {v if isinstance(v, list) else str(len(v)) + ' levels'}")
 OUT.parent.mkdir(parents=True, exist_ok=True)
 OUT.write_text(json.dumps(mech, indent=1), encoding="utf-8")

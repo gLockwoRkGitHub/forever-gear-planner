@@ -27,7 +27,7 @@ TT_DIR = CACHE / "tooltips"
 QDB = CACHE / "questiedb"
 DELTA = WORK / "delta"
 TABLES = ["Item", "ItemSparse", "SpellEffect", "SkillLineAbility", "SkillLine", "AreaTable", "Map", "DungeonEncounter",
-          "SpellName", "SpellLevels", "SpellPower"]
+          "SpellName", "SpellLevels", "SpellPower", "SpellCooldowns"]
 QDB_URL = "https://github.com/Questie/QuestieDB"
 QDB_PATHS = ["data/Forever", "src/corrections/Forever/generated", "src/corrections/enum", "support/Forever/Zones"]
 DELTA_FILES = ["foreverBaseItem.lua", "foreverBaseQuest.lua", "foreverBaseNpc.lua", "foreverBaseObject.lua"]

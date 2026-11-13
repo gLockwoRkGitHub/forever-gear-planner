@@ -69,6 +69,9 @@ for i, sc in ipairs(expected) do
   check(st and st.key == sc.key, "scenario " .. i .. ": profile " .. sc.key)
   check(st.talSrc == "website", "scenario " .. i .. ": talents from the import")
   check(st.sheetSrc == "website", "scenario " .. i .. ": character sheet from the import (same level)")
+  if sc.key == "shaman" then
+    check(st.tal.md == 100 and st.tal.impWT == 30, "scenario " .. i .. ": Mental Dexterity from rank 3 (100%), Improved Weapon Totems 30%")
+  end
   if sc.we then check(st.equipped["Two-Hand"][1].enchDmg == 5, "scenario " .. i .. ": weapon enchant from the import") end
   local w = S:Weights(st, sc.level)
   check((w.__model ~= nil) == sc.model, "scenario " .. i .. ": model used " .. tostring(sc.model))
@@ -338,7 +341,8 @@ end
 
 -- a druid in Cat Form: the model keeps the caster-form sheet it saw last
 do
-  local sc = expected[3]
+  local sc
+  for _, x in ipairs(expected) do if x.key == "druid" then sc = sc or x end end
   local M3, FS3 = boot(sc)
   local S3 = FS3.Gear.State
   check(S3.self.sheetSrc == "game", "druid: sheet from the game in caster form")

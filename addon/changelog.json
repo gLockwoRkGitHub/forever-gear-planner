@@ -1,5 +1,14 @@
 [
   {
+    "version": "1.3.0",
+    "date": "2026-11-13",
+    "changes": [
+      "Schamane: Stat-Gewichte nach dem Blizzard-Hotfix vom 10. November. Sturmschlag macht 100 % Waffenschaden alle 8 Sek. (vorher 150 %, 6 Sek.), Geistige Gewandtheit wandelt 33/66/100 % der Intelligenz in Angriffskraft um (vorher 50/100/150 %).",
+      "Windzorn-Totem zählt jetzt mit: Es löst ab Level 32 zusätzlich zur Waffe des Windzorns aus. Das Modell geht davon aus, dass du das Totem in jedem Kampf stehen hast.",
+      "Folge: Intelligenz ist rund ein Drittel weniger wert, Beweglichkeit, Krit und Trefferwertung etwas mehr, Sturmschlag macht einen kleineren Teil des Schadens aus. Bitte den Import-Text einmal neu kopieren und mit /fs import einfügen."
+    ]
+  },
+  {
     "version": "1.2.1",
     "date": "2026-11-10",
     "changes": [

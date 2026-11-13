@@ -101,7 +101,7 @@ local function scanTalents()
         scanTip:Hide()
         local d = table.concat(text, " ")
         if d ~= "" then described = true end
-        list[#list + 1] = { n = name, d = d }
+        list[#list + 1] = { n = name, d = d, r = tonumber(rank) }
       end
     end
   end
