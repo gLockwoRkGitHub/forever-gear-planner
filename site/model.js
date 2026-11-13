@@ -9,10 +9,14 @@
 // Hotfix 10 Nov 2026: Stormstrike 100% weapon damage and 8 sec cooldown (was 150%, 6 sec); Mental Dexterity
 // 33/66/100% of Intellect (was 50/100/150%); Windfury Weapon and Windfury Totem both proc on the same attacks.
 // The values come from data/mechanics.json (scripts/extract_mechanics.py applies the hotfix to the game tables).
+// Calibrated with Koda's advanced combat log (13 Nov 2026, level 35, 107 solo kills, after the hotfix): typical
+//   quest mobs are 2 levels below you, have 1.3x the Classic health from QuestieDB and ~1,200-1,600 armor
+//   (level 30-37, ~28% physical reduction); Stormstrike hits 1.04x its weapon damage; Windfury Totem was up
+//   in about a third of the fights. Model vs log: kill 12.5 vs 12.6 sec, same damage split within 3 points.
 window.LevelModel = (function () {
   "use strict";
   const MECH = window.MECH || {};
-  const CAL = { stormstrike: 1.06 };
+  const CAL = { stormstrike: 1.04, wfTotemUptime: 0.33, hpScale: 1.3 };
   const SS = Object.assign({ pct: 100, cd: 8, nature: 20 }, (MECH.stormstrike || [])[0] || {});
 
   // --- helpers ----------------------------------------------------------------------------
@@ -36,15 +40,15 @@ window.LevelModel = (function () {
     return m ? +m[1] : 0;
   }
   function scaled(base, perLevel, lv, max, L) { return base + (perLevel || 0) * Math.max(0, Math.min(L, max || L) - lv); }
-  // Questing mobs are usually a level below you.
-  function mobLevel(L) { return Math.max(1, L - 1); }
+  // Questing mobs: median 2 levels below you in Koda's combat log.
+  function mobLevel(L) { return Math.max(1, L - 2); }
   function mobHp(L) {
     const t = MECH.mobHp || {}, m = mobLevel(L);
-    if (t[m]) return t[m];
-    return Math.max(60, 0.6 * m * m + 18 * m);
+    if (t[m]) return t[m] * CAL.hpScale;                                   // Forever mobs: 1.3x Classic health
+    return CAL.hpScale * Math.max(60, 0.6 * m * m + 18 * m);
   }
-  // Armor: fitted to the combat log (about 10% physical reduction around level 32).
-  function mobArmor(L) { return 11.3 * mobLevel(L); }
+  // Armor of normal mobs, fitted to the combat log (level 30: ~1,200, level 37: ~1,600).
+  function mobArmor(L) { return 1150 * Math.pow(mobLevel(L) / 30, 1.2); }
   function physMult(L) { const a = mobArmor(L); return 1 - a / (a + 400 + 85 * L); }
   // Attack table, mob fought from the front (solo questing): 5% miss, dodge and parry.
   function avoidance(hitPct) {
@@ -56,7 +60,7 @@ window.LevelModel = (function () {
 
   // --- Enhancement Shaman: damage dealt in the first T seconds of a fight ---------------------
   // Stats: ap, crit (%), hit (%), sp, spellCrit (%), dodge/parry (%); weapon {min, max, speed}.
-  // Windfury Totem is assumed to be down for every fight once learned; it procs alongside Windfury Weapon.
+  // Windfury Totem procs alongside Windfury Weapon; it was down in about a third of the fights in the log.
   function shamanParts(L, s, tal, w, T) {
     const flurry = tnum(tal, "Flurry", /by (\d+(?:\.\d+)?)%/) / 100;
     const elemW = tnum(tal, "Elemental Weapons", /Windfury Weapon effect by (\d+)%/) / 100;
@@ -92,7 +96,7 @@ window.LevelModel = (function () {
     const wft = rankAt(MECH.windfuryTotem, L);
     if (wft) {
       const bonusAp = scaled(wft.ap, wft.perLevel, wft.lv, wft.max, L) * (1 + impWT);
-      out["Windfury Totem"] = procs * (wft.attacks || 1) * extra(bonusAp);
+      out["Windfury Totem"] = CAL.wfTotemUptime * procs * (wft.attacks || 1) * extra(bonusAp);
     }
     if (esr) {
       const dmg = esr.base * 1.04 + (esr.coef || 0) * (s.sp || 0);        // no level scaling (combat log)

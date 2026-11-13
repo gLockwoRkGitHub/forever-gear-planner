@@ -1,5 +1,14 @@
 [
   {
+    "version": "1.4.1",
+    "date": "2026-11-13",
+    "changes": [
+      "Stat-Gewichte mit Kodas Kampflog nachgemessen (107 Kills auf Level 35): Quest-Mobs liegen meist 2 Level unter dir, haben in Forever rund 30 % mehr Leben als in Classic und schlucken etwa 28 % des körperlichen Schadens. Das Modell trifft jetzt die gemessene Kampfdauer (12,5 statt 12,6 Sek.) und die Schadensaufteilung.",
+      "Windzorn-Totem zählt nur noch in etwa jedem dritten Kampf mit, so oft war es im Log aktiv.",
+      "Folge: Zauberschaden zählt etwas mehr, Trefferwertung etwas weniger. Die Reihenfolge der Items ändert sich kaum."
+    ]
+  },
+  {
     "version": "1.4.0",
     "date": "2026-11-13",
     "changes": [

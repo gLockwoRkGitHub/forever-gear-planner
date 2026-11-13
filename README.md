@@ -41,16 +41,18 @@ data (also the dungeon quest lines with their pre-quests, `data/dungeon_quests.j
 ## Level model
 
 The default stat weights are computed per character and level (`site/model.js`): how fast the character kills
-a typical mob one level below (health from QuestieDB), with every fight starting with cooldowns ready (and a
+a typical mob two levels below (health from QuestieDB x1.3), with every fight starting with cooldowns ready (and a
 cat with full energy). Inputs: talents and character sheet (Blizzard API) and the ability ranks in the game
 data (`data/mechanics.json`, built by `scripts/extract_mechanics.py`). Each weight is the extra kill speed of
 one point of a stat, counted in Strength points; two-handers are valued by their damage and speed directly.
 
 - Shaman: Stormstrike opens (100% weapon damage, 8 sec cooldown), Earth Shock after the global cooldown and
   every 6 sec, Improved Stormstrike resets, auto attacks with Flurry. Windfury Weapon from 30 and Windfury Totem
-  from 32 roll on every hit (the totem is assumed to be down in every fight); Mental Dexterity turns 33/66/100%
-  of Intellect into attack power by rank. Calibrated with a combat log (10 Nov 2026, before that day's hotfix):
-  ~10% armor reduction, Earth Shock without level scaling, Stormstrike ~6% above its weapon damage.
+  from 32 roll on every hit (counted in a third of the fights, as in the log); Mental Dexterity turns 33/66/100%
+  of Intellect into attack power by rank. Calibrated with Koda's advanced combat log (13 Nov 2026, level 35,
+  107 solo kills): quest mobs 2 levels below, 1.3x Classic health, ~1,200-1,600 armor at 30-37 (~28% physical
+  reduction), Earth Shock without level scaling, Stormstrike 1.04x its weapon damage, Windfury Totem in about a
+  third of the fights. Model vs log: kill time 12.5 vs 12.6 sec, damage split within 3 points.
 - Hotfixes the game tables on wago.tools do not show yet are applied in `scripts/extract_mechanics.py`
   (`HOTFIXES`, `MENTAL_DEXTERITY`): currently Blizzard's hotfix of 10 Nov 2026 (Stormstrike 150% → 100%,
   6 → 8 sec; Mental Dexterity 50/100/150% → 33/66/100%; Windfury Weapon and Windfury Totem together). The

@@ -21,16 +21,18 @@ end
 local function scaled(base, perLevel, lv, cap, L) return base + (perLevel or 0) * max(0, min(L, cap or L) - lv) end
 local function T_(tal, k) return (tal and tonumber(tal[k])) or 0 end
 
--- Questing mobs are usually a level below you; their health from the game data (median per level).
-function M.mobLevel(L) return max(1, L - 1) end
+local CAL = { stormstrike = 1.04, wfTotemUptime = 0.33, hpScale = 1.3 }
+-- Questing mobs: median 2 levels below you in Koda's combat log (13 Nov 2026, level 35, 107 solo kills);
+-- their health from the game data (median per level) x1.3, Forever's mobs have more health than Classic's.
+function M.mobLevel(L) return max(1, L - 2) end
 function M.mobHp(L)
   local t, m = mech().mobHp or {}, M.mobLevel(L)
   local v = t[m] or t[tostring(m)]
-  if v then return v end
-  return max(60, 0.6 * m * m + 18 * m)
+  if v then return v * CAL.hpScale end
+  return CAL.hpScale * max(60, 0.6 * m * m + 18 * m)
 end
--- Armor: fitted to Koda's combat log (about 10% physical reduction around level 32).
-function M.mobArmor(L) return 11.3 * M.mobLevel(L) end
+-- Armor of normal mobs, fitted to the combat log (level 30: ~1,200, level 37: ~1,600).
+function M.mobArmor(L) return 1150 * (M.mobLevel(L) / 30) ^ 1.2 end
 function M.physMult(L) local a = M.mobArmor(L); return 1 - a / (a + 400 + 85 * L) end
 -- Attack table, mob fought from the front (solo questing): 5% miss, dodge and parry.
 local function avoidance(hitPct)
@@ -42,7 +44,6 @@ local function uses(T, start, cd)
   if T <= start then return max(0, T / max(start, 0.5)) * 0.5 end
   return 1 + (T - start - cd > 0 and (T - start - cd) / cd or 0)
 end
-local CAL = { stormstrike = 1.06 }
 -- Stormstrike from the game data (the data build applies the hotfix of 10 Nov 2026: 100%, 8 sec)
 local function stormstrike()
   local r = (mech().stormstrike or {})[1] or {}
@@ -52,8 +53,8 @@ end
 -- --- Enhancement Shaman: damage dealt in the first T seconds of a fight ------------------------
 -- Calibrated with Koda's combat log (level 33, before the hotfix of 10 Nov 2026): Earth Shock does not grow
 -- with level, Stormstrike hit about 6% harder than its weapon damage, Improved Stormstrike resets on
--- dodge/parry. Since the hotfix, Windfury Weapon and Windfury Totem both roll on every hit; the totem is
--- assumed to be down for every fight once learned.
+-- dodge/parry. Since the hotfix, Windfury Weapon and Windfury Totem both roll on every hit; the totem was
+-- down in about a third of the fights (combat log 13 Nov 2026), Stormstrike hits 1.04x its weapon damage.
 local function shamanParts(L, s, tal, w, T)
   local flurry, elemW, storm = T_(tal, "flurry") / 100, T_(tal, "elemW") / 100, T_(tal, "storm") > 0
   local resetPct, impWT = T_(tal, "impSS") / 100, T_(tal, "impWT") / 100
@@ -87,7 +88,7 @@ local function shamanParts(L, s, tal, w, T)
   end
   local wtr = rankAt(mech().windfuryTotem, L)
   if wtr then
-    wft = procs * (wtr.attacks or 1) * extra(scaled(wtr.ap, wtr.perLevel, wtr.lv, wtr.max, L) * (1 + impWT))
+    wft = CAL.wfTotemUptime * procs * (wtr.attacks or 1) * extra(scaled(wtr.ap, wtr.perLevel, wtr.lv, wtr.max, L) * (1 + impWT))
   end
   local es = 0
   if esr then
