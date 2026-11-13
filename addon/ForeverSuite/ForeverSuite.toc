@@ -15,6 +15,7 @@ Core\Comm.lua
 Data\Meta.lua
 Data\Items.lua
 Data\Quests.lua
+Data\DungeonQuests.lua
 Modules\GearPlanner\Profiles.lua
 Modules\GearPlanner\Model.lua
 Modules\GearPlanner\Engine.lua
@@ -24,10 +25,12 @@ Core\UI.lua
 Core\Window.lua
 Modules\GearPlanner\GearTab.lua
 Modules\GearPlanner\OverviewTab.lua
+Modules\DungeonQuests.lua
 Modules\DungeonGuide.lua
 Modules\QuestSync.lua
 Modules\Tooltip.lua
 Modules\QuestReward.lua
 Modules\Partner.lua
+Modules\XPBar.lua
 Core\SettingsTab.lua
 Core\Minimap.lua

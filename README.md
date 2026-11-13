@@ -35,7 +35,7 @@ To check the fetched data, run *Build and deploy* manually with **Log every fetc
 then lists every equipped item with its stats (Blizzard and armory side by side).
 
 Item data comes from the WoW Forever game tables on [wago.tools](https://wago.tools), quest, NPC and vendor
-data from [QuestieDB](https://github.com/Questie/QuestieDB), and item tooltips from
+data (also the dungeon quest lines with their pre-quests, `data/dungeon_quests.json`) from [QuestieDB](https://github.com/Questie/QuestieDB), and item tooltips from
 [Wowhead](https://www.wowhead.com/forever).
 
 ## Level model

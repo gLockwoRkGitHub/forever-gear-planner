@@ -376,6 +376,138 @@ for qid_, qu_ in qquests.items():
         zone_index[zname] = len(zones_out)
         zones_out.append(zname)
     quests_out[str(qid_)] = [qu_["name"], zone_index[zname], qu_.get("questLevel") or 0, qu_.get("requiredLevel") or 0]
+# ---------------------------------------------------------------- dungeon quests with their pre-quest chains
+# For the addon's dungeon preparation: per dungeon the quests a Tauren Shaman or Druid can do there, and every
+# quest that has to be done before (preQuestSingle: one of them, preQuestGroup: all of them), each with its quest
+# giver, where to find it (zone, coordinates, map ID for a waypoint), where to turn it in and the objectives.
+ui_map = {}
+uimap_lua = QDB / "support" / "Forever" / "Zones" / "areaIdToUiMapId.lua"
+if uimap_lua.exists():
+    for m in re.finditer(r"\[(\d+)\]\s*=\s*(\d+)", uimap_lua.read_text(encoding="utf-8")):
+        if int(m.group(2)):
+            ui_map[int(m.group(1))] = int(m.group(2))
+
+
+def place(rec):
+    """Zone, coordinates and map ID of an NPC or object; inside a dungeon only its name."""
+    if not rec:
+        return {}
+    spawns = rec.get("spawns") or {}
+    zones = list(spawns.items()) if isinstance(spawns, dict) else [(str(i + 1), v) for i, v in enumerate(spawns)]
+    if rec.get("zoneID"):
+        zones.sort(key=lambda kv: int(kv[0]) != int(rec["zoneID"]))
+    for zid, coords in zones:
+        zid = int(zid)
+        if zid in dungeon_name_by_area:
+            return {"in": dungeon_name_by_area[zid]}
+        pts = [c for c in (coords or []) if isinstance(c, list) and len(c) >= 2 and c[0] >= 0 and c[1] >= 0]
+        if pts and zone_name(zid):
+            out = {"z": zone_name(zid), "x": round(pts[0][0], 1), "y": round(pts[0][1], 1)}
+            if ui_map.get(zid):
+                out["m"] = ui_map[zid]
+            return out
+    zid = int(rec.get("zoneID") or 0)
+    if zid in dungeon_name_by_area:
+        return {"in": dungeon_name_by_area[zid]}
+    return {"z": zone_name(zid)} if zone_name(zid) else {}
+
+
+def who(refs):
+    """Quest giver or turn-in from Questie's startedBy / finishedBy: {npcs}, {objects}, {items}."""
+    if isinstance(refs, dict):          # sparse Lua tables come through as {position: value}
+        refs = [refs.get(k) or refs.get(str(k)) for k in (1, 2, 3)]
+    refs = refs or []
+    for kind, table in (("npc", qnpcs), ("obj", qobjects), ("item", qitems)):
+        i = {"npc": 0, "obj": 1, "item": 2}[kind]
+        ids = refs[i] if len(refs) > i and refs[i] else []
+        if isinstance(ids, dict):
+            ids = list(ids.values())
+        for rid in ids:
+            rec = table.get(str(rid))
+            if not rec or not rec.get("name"):
+                continue
+            if kind == "npc" and rec.get("friendlyToFaction") and "H" not in rec["friendlyToFaction"]:
+                continue
+            out = {"t": kind, "n": rec["name"]}
+            if kind != "item":
+                out.update(place(rec))
+            return out
+    return None
+
+
+def ok_ids(ids):
+    return [int(x) for x in (ids or []) if str(x) in qquests and quest_ok(qquests[str(x)])]
+
+
+dq_quests, dq_by_dungeon = {}, defaultdict(list)
+
+
+def add_quest(qid, depth=0):
+    if qid in dq_quests or depth > 40:
+        return
+    qu = qquests.get(str(qid))
+    if not qu:
+        return
+    rec = {"n": qu.get("name"), "lv": qu.get("questLevel") or 0, "min": qu.get("requiredLevel") or 0}
+    if qu.get("requiredClasses"):
+        rec["rc"] = qu["requiredClasses"]
+    s_ = who(qu.get("startedBy"))
+    if s_:
+        rec["s"] = s_
+    e_ = who(qu.get("finishedBy"))
+    if e_ and (not s_ or e_["n"] != s_["n"]):
+        rec["e"] = e_
+    obj = [o.strip() for o in (qu.get("objectivesText") or []) if o and o.strip()]
+    if obj:
+        rec["o"] = [o[:220] for o in obj[:4]]
+    single, group = ok_ids(qu.get("preQuestSingle")), ok_ids(qu.get("preQuestGroup"))
+    if single:
+        rec["ps"] = single
+    if group:
+        rec["pg"] = group
+    excl = ok_ids(qu.get("exclusiveTo"))
+    if excl:
+        rec["x"] = excl
+    zos = int(qu.get("zoneOrSort") or 0)
+    if zos in dungeon_name_by_area:
+        rec["d"] = dungeon_name_by_area[zos]
+    dq_quests[qid] = rec
+    for p_ in single + group:
+        add_quest(p_, depth + 1)
+
+
+for qid_, qu_ in qquests.items():
+    zos = int(qu_.get("zoneOrSort") or 0)
+    if zos in dungeon_name_by_area and qu_.get("name") and quest_ok(qu_) and (qu_.get("requiredLevel") or 0) <= 60:
+        dq_by_dungeon[dungeon_name_by_area[zos]].append(int(qid_))
+        add_quest(int(qid_))
+
+
+def closure(qid, seen=None):
+    """All quests that come before `qid` (every option of preQuestSingle)."""
+    seen = set() if seen is None else seen
+    for p_ in dq_quests.get(qid, {}).get("ps", []) + dq_quests.get(qid, {}).get("pg", []):
+        if p_ not in seen:
+            seen.add(p_)
+            closure(p_, seen)
+    return seen
+
+
+# one entry per quest line: the quests no other quest of the same dungeon builds on (its pre-quests are the steps)
+for d_, ids in dq_by_dungeon.items():
+    before = set()
+    for i in ids:
+        before |= closure(i)
+    ends = [i for i in ids if i not in before]
+    first = {i: min([dq_quests[j]["lv"] for j in closure(i) | {i} if j in dq_quests]) for i in ends}
+    dq_by_dungeon[d_] = sorted(ends, key=lambda i: (first[i], dq_quests[i]["lv"], dq_quests[i]["n"]))
+DQ_OUT = OUT.parent / "dungeon_quests.json"
+DQ_OUT.write_text(json.dumps({"dungeons": dq_by_dungeon, "quests": {str(k): v for k, v in sorted(dq_quests.items())}},
+                             separators=(",", ":"), ensure_ascii=False) + "\n", encoding="utf-8")
+chains = sum(1 for d_ in dq_by_dungeon.values() for i in d_ if dq_quests[i].get("ps") or dq_quests[i].get("pg"))
+print("written", DQ_OUT, f"{sum(len(v) for v in dq_by_dungeon.values())} quest lines in {len(dq_by_dungeon)} dungeons,",
+      f"{chains} with pre-quests, {len(dq_quests)} quests in all")
+
 QUESTS_OUT = OUT.parent / "quests.json"
 QUESTS_OUT.write_text(json.dumps({"zones": zones_out, "quests": quests_out}, separators=(",", ":")) + "\n", encoding="utf-8")
 print("written", QUESTS_OUT, f"{len(quests_out)} quests in {len(zones_out)} zones")

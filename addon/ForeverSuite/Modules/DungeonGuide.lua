@@ -146,8 +146,30 @@ local function build(panel)
   local sub = UI.Text(right, "GameFontHighlightSmall", "")
   sub:SetPoint("TOPLEFT", 2, -22)
   sub:SetTextColor(0.62, 0.6, 0.53)
+  sub:SetPoint("RIGHT", right, "RIGHT", -240, 0)
+  -- view switch: the drops boss by boss, or the quest lines to prepare
+  local mode = FS.cdb.dungeon.mode == "quests" and "quests" or "loot"
+  function tab:SetMode(m)
+    mode = m == "quests" and "quests" or "loot"
+    FS.cdb.dungeon.mode = mode
+    self:Refresh()
+  end
+  local questsBtn = UI.Flat(right, "Quests", 100, 22, function() tab:SetMode("quests") end)
+  questsBtn:SetPoint("TOPRIGHT", 0, 0)
+  questsBtn.tip = "Quest lines of this dungeon with all pre-quests, for you and your partner"
+  local lootBtn = UI.Flat(right, "Loot", 70, 22, function() tab:SetMode("loot") end)
+  lootBtn:SetPoint("RIGHT", questsBtn, "LEFT", -4, 0)
+  lootBtn.tip = "Drops boss by boss and who gains what"
   local all = UI.Check(right, "All drops", function(v) tab.showAll = v; tab:Refresh() end, "Also list drops that are no upgrade for anyone.")
-  all:SetPoint("TOPRIGHT", -80, 2)
+  all:SetPoint("TOPRIGHT", -70, -26)
+  local onlyOpen = UI.Check(right, "Only open", function(v)
+    FS.cdb.dungeon.onlyOpenQuests = v
+    if tab.qview then tab.qview.onlyOpen = v end
+    tab:Refresh()
+  end, "Hide quest lines that both of you have done (or cannot do).")
+  onlyOpen:SetPoint("TOPRIGHT", -170, -26)
+  local expandAll = UI.Flat(right, "Open / close all", 120, 20, function() if tab.qview then tab.qview:ToggleAll() end end)
+  expandAll:SetPoint("TOPRIGHT", 0, -27)
   local link = UI.Flat(right, "This is the dungeon I'm in", 200, 22, function()
     if tab.selected and Guide.unknownId then
       FS.db.instanceMap[Guide.unknownId] = tab.selected
@@ -156,10 +178,10 @@ local function build(panel)
       tab:Refresh()
     end
   end)
-  link:SetPoint("TOPRIGHT", 0, -24)
+  link:SetPoint("RIGHT", lootBtn, "LEFT", -8, 0)
   link.tip = "The game did not tell which dungeon this is. Pick it on the left and click here once."
   local dscroll = UI.Scroll(right)
-  dscroll:SetPoint("TOPLEFT", 0, -50)
+  dscroll:SetPoint("TOPLEFT", 0, -54)
   dscroll:SetPoint("BOTTOMRIGHT")
   local headers, rows, lines = UI.Pool(UI.Header), UI.Pool(UI.ItemRow), UI.Pool(UI.Line)
 
@@ -198,7 +220,9 @@ local function build(panel)
       b:SetBackdropBorderColor(sel and UI.GOLD[1] or 0.185, sel and UI.GOLD[2] or 0.204, sel and UI.GOLD[3] or 0.24, 1)
       b:SetAlpha((d.total > 0.05 or soonAny or sel) and 1 or 0.55)
       b.title:SetText(d.name .. (d.name == here and " |cff40ff40(here)|r" or ""))
-      b.meta:SetText((d.range and ("Level " .. d.range[1] .. "-" .. d.range[2]) or "") .. (d.total > 0.05 and (" · score +" .. ("%.1f"):format(d.total)) or ""))
+      local qOpen = (FS.DQ and FS.DQ.enabled and states[1]) and #FS.DQ.Open(d.name, states[1], states) or 0
+      b.meta:SetText((d.range and ("Level " .. d.range[1] .. "-" .. d.range[2]) or "") .. (d.total > 0.05 and (" · score +" .. ("%.1f"):format(d.total)) or "")
+        .. (qOpen > 0 and (" · |cffffd100" .. qOpen .. " quest" .. (qOpen > 1 and "s" or "") .. "|r") or ""))
       local chips = {}
       for _, p in ipairs(d.per) do
         chips[#chips + 1] = who(p.ctx.st) .. " " .. (p.count > 0 and ("|cff40ff40" .. p.count .. " up|r") or "|cff888888none|r")
@@ -217,6 +241,27 @@ local function build(panel)
     sub:SetText((range and ("Level " .. range[1] .. "-" .. range[2]) or "") .. partners)
     link:SetShown(Guide.unknownId ~= nil)
     all:SetChecked(self.showAll)
+    -- quests view
+    local dq = FS.DQ and FS.DQ.enabled
+    if not dq then mode = "loot" end
+    questsBtn:SetShown(dq); lootBtn:SetShown(dq)
+    lootBtn:SetActive(mode == "loot"); questsBtn:SetActive(mode == "quests")
+    if dq then
+      local n = states[1] and #FS.DQ.Open(selected or "", states[1], states) or 0
+      questsBtn.label:SetText("Quests" .. (n > 0 and (" |cffffd100(" .. n .. ")|r") or ""))
+    end
+    local quests = mode == "quests"
+    all:SetShown(not quests); onlyOpen:SetShown(quests); expandAll:SetShown(quests)
+    dscroll:SetShown(not quests)
+    if quests then
+      if not self.qview then self.qview = FS.DQ:CreateView(right) end
+      self.qview:SetShown(true)
+      onlyOpen:SetChecked(self.qview.onlyOpen)
+      self.qview:Render(selected)
+      return
+    elseif self.qview then
+      self.qview:SetShown(false)
+    end
     if not selected then dscroll:SetContentHeight(0); return end
 
     local items = G.dungeonItems[selected] or {}
@@ -321,6 +366,7 @@ function Guide:OnZone()
   self.lastKey = key
   FS:Print("|cffffffff" .. known .. "|r")
   for _, line in ipairs(self:Summary(known)) do print("   " .. line) end
+  if FS.DQ then FS.safecall(FS.DQ.EnterMessage, FS.DQ, known) end
   if FS.cdb.dungeon.autoOpen ~= false then
     local t = FS.Window:Tab("dungeons")
     FS.Window:Show("dungeons")

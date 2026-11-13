@@ -13,6 +13,7 @@ on:
       - "scripts/build_addon.py"
       - "data/mechanics.json"
       - "data/quests.json"
+      - "data/dungeon_quests.json"
       - "site/app.js"
       - "site/model.js"
 

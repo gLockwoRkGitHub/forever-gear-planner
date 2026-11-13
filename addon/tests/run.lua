@@ -285,6 +285,97 @@ check(imp and imp.chars.druid.sheet.agi == 70 and imp.chars.druid.preset == "Lev
 check(imp and #imp.chars.druid.profs == 0 and imp.chars.shaman.profs[1] == "Enchanting", "website text: professions")
 check(FS.Import.Parse("hello") == nil, "rejects other text")
 
+-- Cat and Bear for a druid in the tooltip (module druidforms), switchable
+GameTooltip:SetItemByID(10400)
+local formsLine = find(GameTooltip._lines or {}, "Forever Suite") or ""
+check(formsLine:find("Tato") and formsLine:find("Cat") and formsLine:find("Bear"), "druid partner shows Cat and Bear")
+check(not formsLine:find("You |cffaaaaaaCat"), "the shaman has no Cat/Bear split")
+say("tooltip with forms: " .. formsLine)
+FS:SetModuleEnabled("druidforms", false)
+GameTooltip:SetItemByID(10400)
+local plainLine = find(GameTooltip._lines or {}, "Forever Suite") or ""
+check(plainLine:find("Tato") and not plainLine:find("Bear"), "Cat/Bear can be switched off")
+FS:SetModuleEnabled("druidforms", true)
+local bearW = S:Weights(tato, tato.level, "Bear (tank)")
+check(bearW.sta == 1.0 and bearW.armor == 0.08, "Bear weights used for the Bear score")
+
+-- dungeon quests: lines with pre-quests, status for you and the partner
+local DQ = FS.DQ
+check(DQ and DQ.enabled, "dungeon quest module on")
+local necklace = DQ.Steps(2341, S:All())
+local names = {}
+for _, id in ipairs(necklace) do names[#names + 1] = id end
+check(table.concat(names, ",") == "2283,2284,2318,2338,2339,2340,2341", "Uldaman necklace line in order: " .. table.concat(names, ","))
+local lineMe = DQ.LineStatus(S.self, necklace)
+check(lineMe.kind == "level" and lineMe.min == 37 and lineMe.step == 1, "necklace line: from level 37 at step 1")
+local tubers = DQ.Steps(1221, S:All())
+check(#tubers == 1 and DQ.LineStatus(S.self, tubers).kind == "ready", "Blueleaf Tubers ready to pick up")
+M.game.active[1221] = true
+check(DQ.LineStatus(S.self, tubers).kind == "log", "in your quest log")
+M.game.active[1221] = nil
+M.game.quests[1221] = true
+check(DQ.LineStatus(S.self, tubers).kind == "done", "done once turned in")
+M.game.quests[1221] = nil
+-- the partner's quest log arrives with QL
+asPartner("QL", FS.modules.questsync.Encode({ [1144] = true }))
+check(FS.db.questSync["Tato Mcpaw"].active and FS.db.questSync["Tato Mcpaw"].active[1144], "partner quest log stored")
+check(DQ.LineStatus(tato, DQ.Steps(1144, S:All())).kind == "log", "partner has Willix in the log")
+-- a line in the middle: steps 1-2 done, step 3 starts inside the dungeon
+M.game.level = 40; S:Refresh("level")
+M.game.quests[2283], M.game.quests[2284] = true, true
+local mid = DQ.LineStatus(S.self, DQ.Steps(2341, S:All()))
+check(mid.kind == "ready" and mid.step == 3 and mid.total == 7, "necklace line: step 3 of 7 ready")
+-- view: Dungeons tab, Quests
+SlashCmdList.FOREVERSUITE("dungeons")
+local dtab = FS.Window:Tab("dungeons")
+dtab.obj:Select("Uldaman")
+dtab.obj:SetMode("quests")
+local qv = dtab.obj.qview
+check(qv and qv.dungeon == "Uldaman" and #qv.lines >= 5, "quests view shows Uldaman's lines (" .. (qv and #qv.lines or 0) .. ")")
+qv.expanded[2341] = true
+qv:Render("Uldaman")
+local stepRows, pinned = 0, nil
+for _, f in ipairs(M.frames) do
+  if f._shown and f.num and f.questName and f.badge then
+    stepRows = stepRows + 1
+    if f.start and f.start.m and not pinned then pinned = f end
+  end
+end
+check(stepRows == 7, "expanded necklace line shows 7 steps (" .. stepRows .. ")")
+if pinned then pinned:Click() end
+check(#M.game.waypoints == 1 and M.game.waypoints[1].m, "click on a step sets a map pin")
+qv:ToggleAll()
+qv.onlyOpen = false; qv:Render("Razorfen Kraul")
+check(#qv.lines == 4, "Razorfen Kraul: 4 lines with 'Only open' off (" .. #qv.lines .. ")")
+-- entering a dungeon lists quests not picked up
+M.printed = {}
+M.game.instance = { name = "Kral der Klingenhauer", id = 47 }
+M.fire("PLAYER_ENTERING_WORLD")
+M.runTimers(5)
+check(find(M.printed, "quests not picked up"), "entering a dungeon lists quests not picked up")
+for _, l in ipairs(M.lastPrints(3)) do say("enter: " .. l) end
+M.game.instance = nil
+dtab.obj:SetMode("loot")
+M.game.level = 34; S:Refresh("level")
+
+-- XP bars
+local XB = FS.modules.xpbar
+M.sent = {}
+XB:Send(true)
+M.runTimers(2)
+local xpSent = false
+for _, m in ipairs(M.sent) do if m.msg:match("^XP\t") then xpSent = true end end
+check(xpSent, "own XP sent")
+asPartner("XP", "lv=34;mx=60000;rs=0;xp=48000")
+check(XB.frame and XB.frame:IsShown(), "XP frame shows with a partner")
+local diffText = XB.frame.diff:GetText() or ""
+check(diffText:find("Tato is ahead"), "XP frame says who is ahead: " .. diffText)
+say("xp: " .. (XB.frame.bars[1].text:GetText() or "") .. " " .. (XB.frame.bars[1].right:GetText() or "") .. " | " ..
+  (XB.frame.bars[2].text:GetText() or "") .. " " .. (XB.frame.bars[2].right:GetText() or "") .. " | " .. diffText)
+FS:SetModuleEnabled("xpbar", false)
+check(not XB.frame:IsShown(), "XP frame hides when switched off")
+FS:SetModuleEnabled("xpbar", true)
+
 -- modules off and on again
 for _, m in ipairs(FS.moduleList) do
   FS:SetModuleEnabled(m.id, false)

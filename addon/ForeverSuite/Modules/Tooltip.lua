@@ -11,10 +11,27 @@ local Tip = FS:NewModule("tooltip", {
   order = 30,
 })
 
-local SKIP = { ShoppingTooltip1 = true, ShoppingTooltip2 = true, ForeverSuiteScanTip = true }
+local Forms = FS:NewModule("druidforms", {
+  title = "Cat and Bear in tooltips",
+  desc = "For Feral Druids the tooltip shows two scores: Cat (damage) and Bear (tanking), each against what is worn.",
+  order = 31,
+})
 
-local function part(st, v)
+local SKIP = { ShoppingTooltip1 = true, ShoppingTooltip2 = true, ForeverSuiteScanTip = true }
+local BEAR = "Bear (tank)"
+
+-- the Cat preset to compare with: the druid's own unless that is Bear
+local function catPreset(st)
+  local p = st.settings.preset
+  if p ~= BEAR then return p end
+  return st.prof.presetOrder[1]
+end
+
+local function part(st, v, bear)
   local name = "|cff" .. st.prof.color .. (st.isSelf and "You" or st.short or st.name) .. "|r "
+  if (v.kind == "up" or v.kind == "down") and bear and bear.delta then
+    return name .. "|cffaaaaaaCat|r " .. U.colorDelta(v.delta) .. " |cffaaaaaaBear|r " .. U.colorDelta(bear.delta)
+  end
   if v.kind == "up" then return name .. U.colorDelta(v.delta) end
   if v.kind == "down" then return name .. U.colorDelta(v.delta) end
   if v.kind == "later" then return name .. "|cffffcc00lvl " .. v.from .. (v.delta and (" " .. U.delta(v.delta)) or "") .. "|r" end
@@ -31,13 +48,16 @@ function Tip.Text(link)
   local states = S:All()
   local key = ""
   for _, st in ipairs(states) do key = key .. (st.version or 0) .. ":" .. (st.liveLevel or 0) .. ";" end
+  key = key .. (Forms.enabled and "f" or "")
   if key ~= cacheKey then cache, cacheKey = {}, key end
   local c = cache[it]
   if c ~= nil then return c or nil end
   local parts = {}
   for _, st in ipairs(states) do
-    local v = G:Evaluate(st, it)
-    local p = v and part(st, v)
+    local forms = Forms.enabled and st.key == "druid"
+    local v = G:Evaluate(st, it, forms and catPreset(st) or nil)
+    local bear = forms and v and (v.kind == "up" or v.kind == "down") and G:Evaluate(st, it, BEAR) or nil
+    local p = v and part(st, v, bear)
     if p then parts[#parts + 1] = p end
   end
   local text = #parts > 0 and table.concat(parts, "  ·  ") or false

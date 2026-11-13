@@ -36,6 +36,7 @@ local DB_DEFAULTS = {
   questIds = {},         -- itemID -> questID, learned at quest givers for rewards the data knows only by quest name
   selfNames = {},        -- names your own group messages came back with (never a partner)
   minimap = { angle = 200, hide = false },
+  xpFrame = {},          -- position of the XP bars
   window = {},
   debug = false,
 }

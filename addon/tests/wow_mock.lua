@@ -134,7 +134,26 @@ function M.install(FS_items_lookup)
     GetContainerNumSlots = function(bag) return bag == 0 and #g.bags or 0 end,
     GetContainerItemID = function(bag, slot) return bag == 0 and g.bags[slot] or nil end,
   }
+  g.active = g.active or {}
+  g.xp, g.xpMax, g.rested = g.xp or 30000, g.xpMax or 60000, g.rested or 9000
+  g.waypoints = {}
+  _G.UnitXP = function() return g.xp end
+  _G.UnitXPMax = function() return g.xpMax end
+  _G.GetXPExhaustion = function() return g.rested end
+  _G.UnitInParty = function(name) return g.group ~= nil and name ~= nil end
+  _G.BreakUpLargeNumbers = function(n) return tostring(n) end
+  _G.UiMapPoint = { CreateFromCoordinates = function(m, x, y) return { m = m, x = x, y = y } end }
+  _G.C_Map = { SetUserWaypoint = function(p) g.waypoints[#g.waypoints + 1] = p end }
+  _G.C_SuperTrack = { SetSuperTrackedUserWaypoint = function() end }
   _G.C_QuestLog = {
+    IsOnQuest = function(id) return g.active[id] == true end,
+    GetNumQuestLogEntries = function() local n = 0; for _ in pairs(g.active) do n = n + 1 end; return n end,
+    GetInfo = function(i)
+      local ids = {}
+      for id in pairs(g.active) do ids[#ids + 1] = id end
+      table.sort(ids)
+      return ids[i] and { questID = ids[i], isHeader = false } or nil
+    end,
     IsQuestFlaggedCompleted = function(id) return g.quests[id] == true end,
     GetAllCompletedQuestIDs = function() local t = {}; for id in pairs(g.quests) do t[#t + 1] = id end; return t end,
     GetTitleForQuestID = function(id) return "Quest title " .. id end,

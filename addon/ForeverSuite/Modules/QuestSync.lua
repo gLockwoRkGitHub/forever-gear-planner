@@ -29,6 +29,34 @@ function Q.MyQuests()
   return ids
 end
 
+-- quests in your quest log right now (IDs)
+function Q.MyActive()
+  local ids = {}
+  if C_QuestLog and C_QuestLog.GetNumQuestLogEntries and C_QuestLog.GetInfo then
+    local ok, n = pcall(C_QuestLog.GetNumQuestLogEntries)
+    for i = 1, (ok and n or 0) do
+      local ok2, info = pcall(C_QuestLog.GetInfo, i)
+      if ok2 and type(info) == "table" and not info.isHeader and info.questID and info.questID > 0 then ids[info.questID] = true end
+    end
+  elseif GetNumQuestLogEntries and GetQuestLogTitle then
+    local ok, n = pcall(GetNumQuestLogEntries)
+    for i = 1, (ok and n or 0) do
+      local ok2, _, _, _, isHeader, _, _, _, questID = pcall(GetQuestLogTitle, i)
+      if ok2 and not isHeader and questID and questID > 0 then ids[questID] = true end
+    end
+  end
+  return ids
+end
+
+-- is this quest in your quest log?
+function Q.OnQuest(id)
+  if C_QuestLog and C_QuestLog.IsOnQuest then
+    local ok, v = pcall(C_QuestLog.IsOnQuest, id)
+    if ok then return v and true or false end
+  end
+  return Q.MyActive()[id] or false
+end
+
 -- sorted IDs as base-36 gaps: "1a.3.f.."
 function Q.Encode(ids)
   local list = {}
@@ -52,11 +80,20 @@ function Q:SendList(force)
   if not Comm:GroupChannel() then return false end
   if not force and GetTime() - lastSent < 300 then return false end
   lastSent = GetTime()
-  return Comm:Send("Q", Q.Encode(Q.MyQuests()))
+  local ok = Comm:Send("Q", Q.Encode(Q.MyQuests()))
+  Q:SendActive()
+  return ok
+end
+
+-- the quest log, so the partner sees which dungeon quests you already carry
+function Q:SendActive()
+  if not Comm:GroupChannel() then return false end
+  return Comm:Send("QL", Q.Encode(Q.MyActive()))
 end
 
 function Q:OnList(_, name, payload)
-  FS.db.questSync[name] = { at = time(), ids = Q.Decode(payload) }
+  local old = FS.db.questSync[name]
+  FS.db.questSync[name] = { at = time(), ids = Q.Decode(payload), active = old and old.active or nil, activeAt = old and old.activeAt }
   FS:Fire("QUESTS_SYNCED", name)
   FS:Fire("PARTNER_CHANGED", name)
 end
@@ -65,7 +102,18 @@ function Q:OnAdd(_, name, payload)
   local rec = FS.db.questSync[name]
   if not rec then return end
   local id = tonumber(payload)
-  if id then rec.ids[id] = true; rec.at = time(); FS:Fire("QUESTS_SYNCED", name) end
+  if id then
+    rec.ids[id] = true; rec.at = time()
+    if rec.active then rec.active[id] = nil end
+    FS:Fire("QUESTS_SYNCED", name)
+  end
+end
+
+function Q:OnActive(_, name, payload)
+  local rec = FS.db.questSync[name]
+  if not rec then rec = { at = time(), ids = {} }; FS.db.questSync[name] = rec end
+  rec.active, rec.activeAt = Q.Decode(payload), time()
+  FS:Fire("QUESTS_SYNCED", name)
 end
 
 -- --- tab -----------------------------------------------------------------------------------------
@@ -223,6 +271,14 @@ end
 function Q:OnEnable()
   self:Listen("COMM_Q", "OnList")
   self:Listen("COMM_QA", "OnAdd")
+  self:Listen("COMM_QL", "OnActive")
+  local function logChanged()
+    FS:Debounce("questsync-log", 4, function()
+      if U.InCombat() then FS:Debounce("questsync-log-combat", 6, logChanged) else Q:SendActive() end
+    end)
+  end
+  self:RegisterEvent("QUEST_ACCEPTED", logChanged)
+  self:RegisterEvent("QUEST_REMOVED", logChanged)
   self:Listen("SYNC_REQUESTED", function() Q:SendList(true) end)
   self:Listen("QUESTS_SYNCED", function() FS.Window:RefreshSoon() end)
   self:RegisterEvent("GROUP_ROSTER_UPDATE", function()

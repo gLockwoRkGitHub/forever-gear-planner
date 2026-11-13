@@ -1,5 +1,16 @@
 [
   {
+    "version": "1.4.0",
+    "date": "2026-11-13",
+    "changes": [
+      "Dungeon-Vorbereitung: Im Reiter Dungeons gibt es neben „Loot“ jetzt „Quests“. Pro Dungeon eine aufklappbare Karte je Questreihe, mit allen Vorquests in der richtigen Reihenfolge, Questgeber, Gebiet und Koordinaten, Abgabe, Aufgabe im Dungeon und Belohnungen. Für jeden von euch steht dabei, ob die Quest erledigt ist, im Log steht, abgeholt werden kann oder erst ab einem Level geht. Ein Klick auf einen Schritt setzt eine Kartenmarkierung zum Questgeber.",
+      "Beim Betreten eines Dungeons steht im Chat, welche Quests ihr noch nicht angenommen habt. Euer Questlog wird dafür in der Gruppe abgeglichen.",
+      "Katze und Bär: Für Feral-Druiden zeigt der Tooltip zwei Werte, Katze und Bär. Abschaltbar in den Einstellungen unter „Cat and Bear in tooltips“.",
+      "Erfahrungsbalken: Ein kleines, verschiebbares Fenster zeigt deine und Matzes Erfahrung samt Ruhebonus und wer wie weit vorne liegt. Erscheint, wenn ihr in einer Gruppe seid, abschaltbar unter „XP bars“.",
+      "Bitte beide auf 1.4.0 aktualisieren, sonst fehlen Questlog und Erfahrung des anderen."
+    ]
+  },
+  {
     "version": "1.3.0",
     "date": "2026-11-13",
     "changes": [

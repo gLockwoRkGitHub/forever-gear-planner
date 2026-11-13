@@ -292,17 +292,22 @@ function S:All()
 end
 
 -- --- stat weights ----------------------------------------------------------------------------
-function S:Weights(st, level)
+-- preset: another weight preset than the character's own (e.g. "Bear (tank)" for the tooltip)
+function S:Weights(st, level, preset)
   level = level or st.level
   if not st._w or st._w.version ~= st.version then st._w = { version = st.version } end
-  local hit = st._w[level]
-  if hit then return hit end
   local prof, cfg = st.prof, st.settings
-  local p = prof.presets[cfg.preset]
+  preset = (preset and prof.presets[preset]) and preset or cfg.preset
+  local key = preset == cfg.preset and level or (preset .. "@" .. level)
+  local hit = st._w[key]
+  if hit then return hit end
+  local p = prof.presets[preset]
   local w
   if not p.model then
     w = U.copy(p)
-    for k, v in pairs(cfg.weights or {}) do if type(v) == "number" then w[k] = v end end
+    if preset == cfg.preset then
+      for k, v in pairs(cfg.weights or {}) do if type(v) == "number" then w[k] = v end end
+    end
   else
     w = U.copy(prof.presets[p.base])
     local ctx = FS.Model.context(st.key, { sheet = st.sheet, tal = st.tal, items = st.items, level = st.liveLevel or level }, level)
@@ -314,7 +319,7 @@ function S:Weights(st, level)
       w.__noModel = true
     end
   end
-  st._w[level] = w
+  st._w[key] = w
   return w
 end
 

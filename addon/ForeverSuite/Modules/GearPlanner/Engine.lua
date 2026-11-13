@@ -341,7 +341,7 @@ function G:ClearLinkCache() linkCache = {} end
 
 -- --- verdict for an item in hand (tooltip, quest reward, loot) --------------------------------
 -- kind: "up", "down", "later" (level too low), "no" (can't use), "equipped", "relic"
-function G:Evaluate(st, it)
+function G:Evaluate(st, it, preset)
   if not st or not it or not it.sl then return nil end
   local level = st.liveLevel or st.level
   for _, e in ipairs(st.equipped[it.sl] or {}) do
@@ -351,7 +351,7 @@ function G:Evaluate(st, it)
   if not gate or (it.cl and not hasClass(it.cl, st.prof.cls)) then return { kind = "no" } end
   if it.np and not st.settings.profs[(it.np:gsub(" %(.*$", ""))] then return { kind = "no", why = it.np } end
   local from = math.max(gate, it.rq or 0)
-  local w = G.State:Weights(st, level)
+  local w = G.State:Weights(st, level, preset)
   local sc = G.ScoreW(it, w)
   if it.sl == "Relic" then return { kind = from > level and "later" or "relic", from = from, score = sc } end
   local base = st.hasGear and G.BaselineScore(st.equipped[it.sl] or {}, it.sl, w) or 0

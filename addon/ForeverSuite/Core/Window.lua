@@ -17,7 +17,7 @@ local function tabVisible(t)
 end
 
 function W:Create()
-  local f = UI.Window("ForeverSuiteWindow", "Forever Suite", 720, 540)
+  local f = UI.Window("ForeverSuiteWindow", "Forever Suite", 840, 580)
   local pos = FS.db.window
   if pos.point then
     f:ClearAllPoints()

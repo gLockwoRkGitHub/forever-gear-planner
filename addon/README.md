@@ -15,10 +15,13 @@ Every module can be switched off on the Settings tab or with `/fs module <id> of
 |---|---|---|
 | Gear planner | `planner` | Overview tab: per slot the best upgrade, where it comes from and the gain, biggest first, with the best places to go. Gear tab: per slot what you wear and the best upgrades for your level (or a level you pick), where they drop, the next upgrade within 3 levels. Finished quests are left out, items in your bags are marked. |
 | Dungeon guide | `dungeon` | Dungeons tab: dungeons ranked by upgrades for you and your partner, boss by boss who gains what. Entering a dungeon prints a summary and opens the tab. |
+| Dungeon quests | `dungeonprep` | Dungeons tab, view *Quests*: per dungeon one collapsible card per quest line with every pre-quest in order (quest giver, zone, coordinates, turn-in, task, rewards), the status for you and your partner (done, in log, pick up, from level N) and a map pin per quest giver. Entering a dungeon lists the quests not picked up. Data: `data/dungeon_quests.json` from QuestieDB (`preQuestSingle` / `preQuestGroup`). |
 | Tooltip scores | `tooltip` | Every item tooltip: `Forever Suite  You +4.2 · Tato +6.1`. |
+| Cat and Bear in tooltips | `druidforms` | For Feral Druids two scores, Cat and Bear (tank weights), each against what is worn. |
 | Best quest reward | `questreward` | Gold star on the best reward, a coin on the most valuable one when nothing is an upgrade. |
 | Quest sync | `questsync` | Quests tab: what your partner has done that you have not, and the other way round. |
 | Partner sync | `partner` | In a group, both addons swap level, gear, character sheet, talents and settings, so each sees the other's scores. The last state is kept for when the partner is offline. |
+| XP bars | `xpbar` | A small movable frame with your and your partner's experience and rested XP, and who is ahead. |
 | Loot hints | `loothints` | On a loot roll or in the loot window: who gains how much. |
 
 New ideas become new modules: `FS:NewModule(id, { title, desc, order })` with `OnInitialize`, `OnEnable`,
